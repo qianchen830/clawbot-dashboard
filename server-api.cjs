@@ -648,12 +648,28 @@ app.put('/api/fleet/instances/:id', (req, res) => {
   res.json({ ok: true, ...inst })
 })
 
+function getNativeServiceName(id) {
+  try {
+    const metaPath = `${FLEET_INSTANCES_DIR}/${id}/instance.json`
+    if (fs.existsSync(metaPath)) {
+      const meta = JSON.parse(fs.readFileSync(metaPath, 'utf8'))
+      if (meta.runtime === 'native-wsl' && meta.service) return meta.service
+    }
+  } catch {}
+  return null
+}
+
 app.post('/api/fleet/instances/:id/restart', (req, res) => {
   const { id } = req.params
   if (id === 'master') return res.status(400).json({ error: '主控不支持此操作，请通过系统服务管理' })
   const { execSync } = require('child_process')
+  const nativeSvc = getNativeServiceName(id)
   try {
-    execSync('cd /home/openclaw/docker-openclaw && sudo docker compose restart ' + id, { stdio: 'pipe' })
+    if (nativeSvc) {
+      execSync(`systemctl --user restart ${nativeSvc}`, { stdio: 'pipe' })
+    } else {
+      execSync('cd /home/openclaw/docker-openclaw && sudo docker compose restart ' + id, { stdio: 'pipe' })
+    }
     res.json({ ok: true, message: `实例 ${id} 重启指令已发送` })
   } catch (e) { res.status(500).json({ error: `重启失败: ${e.message}` }) }
 })
@@ -662,8 +678,13 @@ app.post('/api/fleet/instances/:id/stop', (req, res) => {
   const { id } = req.params
   if (id === 'master') return res.status(400).json({ error: '主控不支持此操作' })
   const { execSync } = require('child_process')
+  const nativeSvc = getNativeServiceName(id)
   try {
-    execSync('cd /home/openclaw/docker-openclaw && sudo docker compose stop ' + id, { stdio: 'pipe' })
+    if (nativeSvc) {
+      execSync(`systemctl --user stop ${nativeSvc}`, { stdio: 'pipe' })
+    } else {
+      execSync('cd /home/openclaw/docker-openclaw && sudo docker compose stop ' + id, { stdio: 'pipe' })
+    }
     res.json({ ok: true, message: `实例 ${id} 已停止` })
   } catch (e) { res.status(500).json({ error: `停止失败: ${e.message}` }) }
 })
@@ -672,8 +693,13 @@ app.post('/api/fleet/instances/:id/start', (req, res) => {
   const { id } = req.params
   if (id === 'master') return res.status(400).json({ error: '主控不支持此操作' })
   const { execSync } = require('child_process')
+  const nativeSvc = getNativeServiceName(id)
   try {
-    execSync('cd /home/openclaw/docker-openclaw && sudo docker compose start ' + id, { stdio: 'pipe' })
+    if (nativeSvc) {
+      execSync(`systemctl --user start ${nativeSvc}`, { stdio: 'pipe' })
+    } else {
+      execSync('cd /home/openclaw/docker-openclaw && sudo docker compose start ' + id, { stdio: 'pipe' })
+    }
     res.json({ ok: true, message: `实例 ${id} 已启动` })
   } catch (e) { res.status(500).json({ error: `启动失败: ${e.message}` }) }
 })
@@ -698,8 +724,8 @@ const GIT_REPOS = [
   { name: '收租提醒APP', path: '/home/openclaw/workspace/projects/rent-reminder-app', github: 'rent-reminder-app' },
   { name: 'ClawBot Dashboard', path: '/home/openclaw/.openclaw/workspace/clawbot-dashboard', github: 'clawbot-dashboard' },
   { name: '金蝶交付系统', path: '/mnt/d/kingdee-web', github: 'kingdee-web' },
-  { name: 'Agent Bridge', path: '/home/openclaw/.openclaw/workspace/agent-bridge/bridge' },
-  { name: 'Fleet Controller', path: '/home/openclaw/.openclaw/workspace/plugins/fleet-controller' },
+  { name: 'Agent Bridge', path: '/home/openclaw/.openclaw/workspace/agent-bridge/bridge', github: 'agent-bridge' },
+  { name: 'Fleet Controller', path: '/home/openclaw/.openclaw/workspace/plugins/fleet-controller', github: 'fleet-controller' },
 ]
 
 function gitExec(args, cwd) {
@@ -1083,9 +1109,234 @@ app.get('/api/cc-stats', async (req, res) => {
   }
 })
 
+// ═══════════════════════════════════════════════════════════
+//  模型配额 & 账期配置
+// ═══════════════════════════════════════════════════════════
+const MODEL_QUOTA_CONFIG = {
+  minimax: {
+    label: 'MiniMax M2.7',
+    cc_provider_ids: ['minimax-official'],
+    model_name: 'MiniMax-M2.7',
+    monthlyQuotaCalls: 100000,
+    billingDay: 16,
+    color: '#00e5ff',
+    icon: '🟢',
+  },
+  'volcano-plan': {
+    label: '火山方舟 Agent Plan',
+    cc_provider_ids: ['volcano-plan'],
+    model_name: 'ark-code-latest',
+    monthlyQuotaCalls: 100000,
+    billingDay: 20,
+    color: '#7c4dff',
+    icon: '🟣',
+  },
+  volcano: {
+    label: '火山方舟 Code Plan',
+    cc_provider_ids: ['volcano', 'volcano-ark'],
+    model_name: 'ark-code-latest',
+    monthlyQuotaCalls: 50000,
+    billingDay: 20,
+    color: '#ff9100',
+    icon: '🟠',
+  },
+}
+
+function getProviderBillingPeriod(now, billingDay) {
+  const d = new Date(now)
+  const day = d.getDate()
+  let start, end
+  if (day >= billingDay) {
+    start = new Date(d.getFullYear(), d.getMonth(), billingDay)
+    end = new Date(d.getFullYear(), d.getMonth() + 1, billingDay - 1, 23, 59, 59)
+  } else {
+    start = new Date(d.getFullYear(), d.getMonth() - 1, billingDay)
+    end = new Date(d.getFullYear(), d.getMonth(), billingDay - 1, 23, 59, 59)
+  }
+  return {
+    start: start.toISOString().slice(0, 10),
+    end: end.toISOString().slice(0, 10),
+    startTs: Math.floor(start.getTime() / 1000),
+    endTs: Math.floor(end.getTime() / 1000),
+    daysRemaining: Math.ceil((end - d) / 86400000),
+  }
+}
+
+function getProviderUsageFromCC(providerId, startTs, endTs) {
+  try {
+    const script = [
+      'import sqlite3, json, os',
+      `conn = sqlite3.connect('/mnt/c/Users/Administrator/.cc-switch/cc-switch.db')`,
+      'c = conn.cursor()',
+      `c.execute('SELECT COUNT(*), COALESCE(SUM(input_tokens),0), COALESCE(SUM(output_tokens),0) FROM proxy_request_logs WHERE provider_id=? AND created_at>=? AND created_at<=?', ['${providerId}', ${startTs}, ${endTs}])`,
+      'calls, inp, out = c.fetchone()',
+      `c.execute('SELECT created_at, COUNT(*), COALESCE(SUM(input_tokens),0), COALESCE(SUM(output_tokens),0) FROM proxy_request_logs WHERE provider_id=? AND created_at>=? AND created_at<=? GROUP BY created_at ORDER BY created_at', ['${providerId}', ${startTs}, ${endTs}])`,
+      'by_day = {}',
+      'for ts, cc, ii, oo in c.fetchall():',
+      "  day = __import__('datetime').datetime.fromtimestamp(ts).strftime('%Y-%m-%d')",
+      '  if day not in by_day: by_day[day] = {"calls":0,"input":0,"output":0}',
+      '  by_day[day]["calls"] += cc; by_day[day]["input"] += ii; by_day[day]["output"] += oo',
+      'conn.close()',
+      "print(json.dumps({'calls':calls,'input_tokens':inp,'output_tokens':out,'by_day':by_day}))"
+    ].join('\n')
+    const raw = execSync('python3 -c "' + script.replace(/"/g, '\\"') + '"', { timeout: 8000 })
+    return JSON.parse(raw.toString())
+  } catch(e) {
+    return { calls: 0, input_tokens: 0, output_tokens: 0, by_day: {} }
+  }
+}
+
+function getProviderUsageFromMultipleCC(providerIds, startTs, endTs) {
+  // 合并多个 provider 的用量
+  let totalCalls = 0, totalInp = 0, totalOut = 0
+  const dayMap = {}
+  for (const pid of providerIds) {
+    const u = getProviderUsageFromCC(pid, startTs, endTs)
+    totalCalls += u.calls
+    totalInp += u.input_tokens
+    totalOut += u.output_tokens
+    for (const [day, d] of Object.entries(u.by_day || {})) {
+      if (!dayMap[day]) dayMap[day] = { calls: 0, input: 0, output: 0 }
+      dayMap[day].calls += d.calls
+      dayMap[day].input += d.input
+      dayMap[day].output += d.output
+    }
+  }
+  return { calls: totalCalls, input_tokens: totalInp, output_tokens: totalOut, by_day: dayMap }
+}
+
+function getModelBalancerConfig() {
+  try {
+    const cfg = JSON.parse(fs.readFileSync('/home/openclaw/.openclaw/openclaw.json', 'utf8'))
+    const modelCfg = cfg?.agents?.defaults?.model || {}
+    const primary = modelCfg.primary || 'unknown'
+    const fallbacks = modelCfg.fallbacks || []
+    const providerLabels = {
+      minimax: 'MiniMax M2.7',
+      'volcano-plan': '火山方舟 Agent Plan',
+      volcano: '火山方舟 Code Plan',
+    }
+    const parseModelId = (id) => {
+      const parts = id.split('/')
+      return { provider: parts[0], model: parts.slice(1).join('/') || parts[0], fullId: id }
+    }
+    const chain = [
+      { ...parseModelId(primary), role: 'primary', label: providerLabels[parseModelId(primary).provider] || primary },
+      ...fallbacks.map(f => ({ ...parseModelId(f), role: 'fallback', label: providerLabels[parseModelId(f).provider] || f })),
+    ]
+    return { primary, fallbacks, chain, strategy: 'sequential-fallback', description: '主模型失败/限流时，按顺序自动降级到备用模型' }
+  } catch {
+    return { primary: 'unknown', fallbacks: [], chain: [], strategy: 'unknown', description: '' }
+  }
+}
+
+app.get('/api/token/quota', async (req, res) => {
+  const now = new Date()
+  const balancer = getModelBalancerConfig()
+  const { start, end, range } = req.query
+
+  // 计算时间范围
+  let rangeLabel = '账期'
+  let periodStart, periodEnd
+
+  if (start && end) {
+    // 自定义范围
+    rangeLabel = `${start} ~ ${end}`
+    periodStart = new Date(start + 'T00:00:00')
+    periodEnd = new Date(end + 'T23:59:59')
+  } else if (range === 'week') {
+    rangeLabel = '近7天'
+    const s = new Date(now); s.setDate(s.getDate() - 7)
+    periodStart = new Date(s.getFullYear(), s.getMonth(), s.getDate())
+    periodEnd = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59)
+  } else if (range === 'month') {
+    rangeLabel = '近30天'
+    const s = new Date(now); s.setDate(s.getDate() - 30)
+    periodStart = new Date(s.getFullYear(), s.getMonth(), s.getDate())
+    periodEnd = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59)
+  } else if (range === 'all') {
+    rangeLabel = '全部时间'
+    periodStart = new Date(2000, 0, 1)
+    periodEnd = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59)
+  } else {
+    // 默认账期（取最早的账期作为参考，取各provider的平均）
+    rangeLabel = '当前账期'
+    const p16 = getProviderBillingPeriod(now, 16)
+    periodStart = new Date(p16.start + 'T00:00:00')
+    periodEnd = new Date(p16.end + 'T23:59:59')
+  }
+
+  const startTs = Math.floor(periodStart.getTime() / 1000)
+  const endTs = Math.floor(periodEnd.getTime() / 1000)
+
+  const providers = Object.entries(MODEL_QUOTA_CONFIG).map(([key, cfg]) => {
+    const usage = cfg.cc_provider_ids.length > 1
+      ? getProviderUsageFromMultipleCC(cfg.cc_provider_ids, startTs, endTs)
+      : getProviderUsageFromCC(cfg.cc_provider_ids[0], startTs, endTs)
+    const totalTokens = usage.input_tokens + usage.output_tokens
+    // 配额百分比用当前账期计算，不受筛选范围影响
+    const bp = getProviderBillingPeriod(now, cfg.billingDay)
+    const currentUsage = cfg.cc_provider_ids.length > 1
+      ? getProviderUsageFromMultipleCC(cfg.cc_provider_ids, bp.startTs, bp.endTs)
+      : getProviderUsageFromCC(cfg.cc_provider_ids[0], bp.startTs, bp.endTs)
+    const callsPercent = Math.min(100, Math.round((currentUsage.calls / cfg.monthlyQuotaCalls) * 100))
+    const isPrimary = balancer.primary.startsWith(key + '/')
+    const isFallback = balancer.fallbacks.some(f => f.startsWith(key + '/'))
+    return {
+      key,
+      label: cfg.label,
+      icon: cfg.icon,
+      color: cfg.color,
+      providerId: cfg.cc_provider_ids.join(','),
+      modelName: cfg.model_name,
+      monthlyQuotaCalls: cfg.monthlyQuotaCalls,
+      billingDay: cfg.billingDay,
+      period: { start: periodStart.toISOString().slice(0, 10), end: periodEnd.toISOString().slice(0, 10), daysRemaining: Math.ceil((periodEnd - now) / 86400000) },
+      usage: {
+        calls: usage.calls,
+        callsRemaining: Math.max(0, cfg.monthlyQuotaCalls - currentUsage.calls),
+        callsPercent,
+        inputTokens: usage.input_tokens,
+        outputTokens: usage.output_tokens,
+        totalTokens,
+        totalTokensFmt: fmtNumCompact(totalTokens),
+        inputTokensFmt: fmtNumCompact(usage.input_tokens),
+        outputTokensFmt: fmtNumCompact(usage.output_tokens),
+        byDay: usage.by_day,
+      },
+      balancerRole: isPrimary ? 'primary' : isFallback ? 'fallback' : 'standby',
+    }
+  })
+
+  const totalCalls = providers.reduce((s, p) => s + p.usage.calls, 0)
+  const totalTokens = providers.reduce((s, p) => s + p.usage.totalTokens, 0)
+
+  res.json({
+    updatedAt: now.toISOString(),
+    rangeLabel,
+    periodStart: periodStart.toISOString().slice(0, 10),
+    periodEnd: periodEnd.toISOString().slice(0, 10),
+    balancer,
+    providers,
+    summary: {
+      totalCalls,
+      totalTokens,
+      totalTokensFmt: fmtNumCompact(totalTokens),
+      activeModels: providers.filter(p => p.usage.calls > 0).length,
+    },
+  })
+})
+
+function fmtNumCompact(n) {
+  if (n >= 1e6) return (n / 1e6).toFixed(2) + 'M'
+  if (n >= 1e3) return (n / 1e3).toFixed(1) + 'K'
+  return String(n)
+}
+
 const PORT = 3001
 app.listen(PORT, () => {
   console.log(`CapCut Mate 代理已注册 → ${CAPCUT_TARGET}`)
   console.log(`Fleet API 已注册: GET/PUT /api/fleet/*`)
   console.log(`CC-Switch 多实例统计已注册: GET /api/cc-stats`)
+  console.log(`Token 配额 API 已注册: GET /api/token/quota`)
 })
