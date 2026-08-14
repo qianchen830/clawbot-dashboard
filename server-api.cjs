@@ -518,6 +518,33 @@ with urllib.request.urlopen(req2,timeout=8) as r2:
   } catch { return null }
 }
 
+function extractModelInfo(cfg) {
+  const modelCfg = cfg?.agents?.defaults?.model
+  if (!modelCfg) return null
+  const providerLabels = {
+    minimax: 'MiniMax M2.7',
+    'volcano-plan': '火山方舟 Agent Plan',
+    volcano: '火山方舟 Code Plan',
+  }
+  const parseId = (id) => {
+    const parts = id.split('/')
+    return { provider: parts[0], model: parts.slice(1).join('/') || parts[0] }
+  }
+  const primary = modelCfg.primary || ''
+  const fallbacks = modelCfg.fallbacks || []
+  const pp = parseId(primary)
+  return {
+    primary,
+    primaryLabel: providerLabels[pp.provider] || primary,
+    fallbacks,
+    chain: [primary, ...fallbacks],
+    chainLabels: [primary, ...fallbacks].map(f => {
+      const p = parseId(f)
+      return providerLabels[p.provider] || f
+    }),
+  }
+}
+
 function loadFleetInstances() {
   const fs = require('fs')
   let masterEntry = null
@@ -538,6 +565,7 @@ function loadFleetInstances() {
       feishu_connected: !!feishu.enabled,
       created_at: 0,
       is_master: true,
+      model_info: extractModelInfo(mainCfg),
     }
   } catch {}
   if (!fs.existsSync(FLEET_INSTANCES_DIR)) return masterEntry ? [masterEntry] : []
@@ -548,6 +576,7 @@ function loadFleetInstances() {
     try {
       const meta = JSON.parse(fs.readFileSync(metaPath, 'utf8'))
       let feishu_app_id = '', feishu_app_secret = '', feishu_connected = false, gateway_token = ''
+      let model_info = null
       const instCfgPath = `${FLEET_INSTANCES_DIR}/${id}/.openclaw/openclaw.json`
       if (fs.existsSync(instCfgPath)) {
         try {
@@ -556,12 +585,14 @@ function loadFleetInstances() {
           feishu_app_secret = instCfg.channels?.feishu?.appSecret || ''
           feishu_connected = instCfg.channels?.feishu?.enabled || false
           gateway_token = instCfg.gateway?.auth?.token || instCfg.gateway?.remote?.token || ''
+          model_info = extractModelInfo(instCfg)
         } catch {}
       }
       instances.push({
         id,
         ...meta,
         gateway_token,
+        model_info,
         feishu_app_id,
         feishu_app_name: null,  // 实时从飞书 API 获取
         feishu_app_secret,
@@ -665,8 +696,8 @@ app.get('/api/fleet/instances/:id/health', async (req, res) => {
 const GIT_REPOS = [
   { name: 'ClawBot Workspace', path: '/home/openclaw/.openclaw/workspace', github: 'clawbot-workspace' },
   { name: '收租提醒APP', path: '/home/openclaw/workspace/projects/rent-reminder-app', github: 'rent-reminder-app' },
-  { name: 'ClawBot Dashboard', path: '/home/openclaw/.openclaw/workspace/clawbot-dashboard' },
-  { name: '金蝶交付系统', path: '/mnt/d/kingdee-web' },
+  { name: 'ClawBot Dashboard', path: '/home/openclaw/.openclaw/workspace/clawbot-dashboard', github: 'clawbot-dashboard' },
+  { name: '金蝶交付系统', path: '/mnt/d/kingdee-web', github: 'kingdee-web' },
   { name: 'Agent Bridge', path: '/home/openclaw/.openclaw/workspace/agent-bridge/bridge' },
   { name: 'Fleet Controller', path: '/home/openclaw/.openclaw/workspace/plugins/fleet-controller' },
 ]
