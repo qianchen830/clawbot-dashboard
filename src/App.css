@@ -1,0 +1,138 @@
+/* ==================== App Layout ==================== */
+.main {
+  display: grid;
+  grid-template-columns: 240px 1fr;
+  gap: 0;
+  min-height: calc(100vh - 65px);
+  max-width: 100vw;
+}
+
+.content {
+  padding: 20px 24px;
+  overflow: hidden;
+}
+
+/* ==================== 响应式 ==================== */
+@media (max-width: 900px) {
+  .main { grid-template-columns: 1fr; }
+}
+
+@media (max-width: 600px) {
+  .content { padding: 16px; }
+}
+
+/* ==================== 玻璃态卡片基础 - 金蝶风格 ==================== */
+.glass-card {
+  background: rgba(255, 255, 255, 0.04) !important;
+  border: 1px solid rgba(255, 255, 255, 0.08) !important;
+  border-radius: 12px;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  filter: none !important;
+  position: relative;
+  overflow: hidden;
+  transition: all 0.3s ease;
+}
+
+/* 渐变边框动画 - 使用伪元素实现 */
+.glass-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  border-radius: inherit;
+  padding: 1px;
+  background: linear-gradient(
+    135deg,
+    rgba(0, 212, 255, 0.4),
+    rgba(124, 77, 255, 0.4),
+    rgba(0, 212, 255, 0.4)
+  );
+  -webkit-mask:
+    linear-gradient(#fff 0 0) content-box,
+    linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  pointer-events: none;
+  animation: borderRotate 4s linear infinite;
+  background-size: 200% 200%;
+}
+
+@keyframes borderRotate {
+  0% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+
+/* Hover时边框发光 */
+.glass-card:hover {
+  border-color: rgba(0, 212, 255, 0.25) !important;
+  box-shadow: 0 0 20px rgba(0, 212, 255, 0.12), 0 0 40px rgba(124, 77, 255, 0.08);
+}
+
+/* ==================== 按钮 ==================== */
+.btn-primary {
+  padding: 0.75rem 1.5rem;
+  border-radius: 0.75rem;
+  background: linear-gradient(135deg, var(--color-accent) 0%, var(--color-accent-purple) 100%);
+  color: white;
+  font-weight: 500;
+  border: none;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  font-size: 0.875rem;
+  -webkit-font-smoothing: antialiased !important;
+}
+
+.btn-primary:hover {
+  transform: translateY(-0.125rem);
+  box-shadow: 0 0.5rem 1.5rem rgba(0, 212, 255, 0.3);
+}
+
+.btn-primary:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.btn-secondary {
+  padding: 0.75rem 1.5rem;
+  border-radius: 0.75rem;
+  background: rgba(255, 255, 255, 0.08);
+  color: #ffffff;
+  font-weight: 500;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  cursor: pointer;
+  transition: all 0.3s ease;
+  font-size: 0.875rem;
+}
+
+.btn-secondary:hover {
+  background: rgba(255, 255, 255, 0.12);
+  border-color: rgba(0, 212, 255, 0.4);
+}
+
+/* ==================== 输入框 ==================== */
+.input-glass {
+  width: 100%;
+  padding: 0.75rem 1rem;
+  border-radius: 0.75rem;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: #ffffff;
+  font-size: 0.875rem;
+  transition: all 0.3s ease;
+  -webkit-font-smoothing: antialiased !important;
+}
+
+.input-glass::placeholder {
+  color: rgba(255, 255, 255, 0.4);
+}
+
+.input-glass:focus {
+  outline: none;
+  border-color: var(--color-accent);
+  box-shadow: 0 0 0 0.25rem rgba(0, 212, 255, 0.1);
+}

@@ -1,0 +1,442 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>数据中心 - ClawBot</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        :root {
+            --neon-cyan: #00e5ff;
+            --neon-blue: #2979ff;
+            --neon-purple: #7c4dff;
+            --neon-pink: #ff4081;
+            --neon-green: #00e676;
+            --neon-orange: #ff9100;
+            --dark-900: #0a0e1a;
+            --dark-800: #0d1126;
+            --dark-700: #111627;
+        }
+        body {
+            font-family: 'Inter', 'Microsoft YaHei', -apple-system, sans-serif;
+            background: var(--dark-900);
+            min-height: 100vh;
+            color: #fff;
+            -webkit-font-smoothing: antialiased;
+        }
+        .header {
+            background: rgba(13, 17, 38, 0.95);
+            backdrop-filter: blur(20px);
+            padding: 16px 30px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+        .header h1 {
+            font-size: 1.3em;
+            background: linear-gradient(90deg, var(--neon-cyan), var(--neon-blue));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        .header-actions { display: flex; gap: 10px; align-items: center; }
+        .refresh-btn {
+            background: rgba(0, 229, 255, 0.15);
+            color: var(--neon-cyan);
+            border: 1px solid rgba(0, 229, 255, 0.3);
+            padding: 7px 16px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 0.85em;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            transition: all 0.2s;
+        }
+        .refresh-btn:hover { background: rgba(0, 229, 255, 0.25); }
+        .refresh-btn.loading { opacity: 0.6; cursor: not-allowed; }
+        .last-update { font-size: 0.75em; color: rgba(255,255,255,0.35); }
+        
+        .container { max-width: 1300px; margin: 0 auto; padding: 24px 20px; }
+        
+        .section { margin-bottom: 28px; }
+        .section-title {
+            font-size: 1.05em;
+            font-weight: 600;
+            margin-bottom: 14px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            color: rgba(255,255,255,0.7);
+        }
+        .section-title span { font-size: 1.2em; }
+        
+        .stats-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 14px; }
+        .stat-card {
+            background: rgba(13, 17, 38, 0.6);
+            backdrop-filter: blur(20px);
+            border-radius: 14px;
+            padding: 20px;
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            text-align: center;
+            transition: all 0.25s;
+        }
+        .stat-card:hover { transform: translateY(-3px); border-color: rgba(0, 229, 255, 0.25); }
+        .stat-card.green { border-color: rgba(0, 230, 118, 0.25); }
+        .stat-card.orange { border-color: rgba(255, 145, 0, 0.25); }
+        .stat-icon { font-size: 1.8em; margin-bottom: 6px; }
+        .stat-value {
+            font-size: 1.8em;
+            font-weight: 700;
+            background: linear-gradient(90deg, var(--neon-cyan), var(--neon-blue));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        .stat-label { font-size: 0.8em; color: rgba(255, 255, 255, 0.45); margin-top: 4px; }
+        
+        .service-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 12px; }
+        .service-card {
+            background: rgba(13, 17, 38, 0.6);
+            backdrop-filter: blur(20px);
+            border-radius: 14px;
+            padding: 16px 18px;
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            transition: all 0.25s;
+        }
+        .service-card:hover { border-color: rgba(0, 229, 255, 0.2); }
+        .service-info { display: flex; align-items: center; gap: 12px; }
+        .service-icon { font-size: 1.4em; }
+        .service-name { font-weight: 600; font-size: 0.95em; }
+        .service-port { font-size: 0.8em; color: rgba(255, 255, 255, 0.35); margin-top: 2px; }
+        .service-status {
+            padding: 5px 12px;
+            border-radius: 16px;
+            font-size: 0.8em;
+            font-weight: 500;
+        }
+        .service-status.online { background: rgba(0, 230, 118, 0.18); color: var(--neon-green); }
+        .service-status.offline { background: rgba(255, 64, 129, 0.18); color: var(--neon-pink); }
+        .service-latency { font-size: 0.72em; color: rgba(255,255,255,0.3); margin-top: 2px; text-align: right; }
+        
+        .cron-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 12px; }
+        .cron-card {
+            background: rgba(13, 17, 38, 0.6);
+            backdrop-filter: blur(20px);
+            border-radius: 14px;
+            padding: 16px 18px;
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            transition: all 0.25s;
+        }
+        .cron-card:hover { border-color: rgba(0, 229, 255, 0.2); }
+        .cron-card.error { border-color: rgba(255, 64, 129, 0.3); }
+        .cron-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+        .cron-name { font-weight: 600; font-size: 0.95em; }
+        .cron-schedule { font-size: 0.78em; color: rgba(255,255,255,0.4); margin-top: 2px; }
+        .cron-status {
+            padding: 4px 10px;
+            border-radius: 12px;
+            font-size: 0.78em;
+            font-weight: 500;
+        }
+        .cron-status.ok { background: rgba(0, 230, 118, 0.15); color: var(--neon-green); }
+        .cron-status.error { background: rgba(255, 64, 129, 0.15); color: var(--neon-pink); }
+        .cron-status.pending { background: rgba(255, 145, 0, 0.15); color: var(--neon-orange); }
+        .cron-next { font-size: 0.78em; color: rgba(255,255,255,0.35); margin-top: 6px; }
+        .cron-error { font-size: 0.75em; color: var(--neon-pink); margin-top: 4px; }
+        
+        .learning-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 12px; }
+        .learning-card {
+            background: rgba(13, 17, 38, 0.6);
+            backdrop-filter: blur(20px);
+            border-radius: 14px;
+            padding: 16px;
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            text-align: center;
+            transition: all 0.25s;
+        }
+        .learning-card.sent { border-color: rgba(0, 230, 118, 0.25); }
+        .learning-card.pending { border-color: rgba(255, 145, 0, 0.15); }
+        .learning-icon { font-size: 1.6em; margin-bottom: 6px; }
+        .learning-label { font-weight: 500; font-size: 0.9em; }
+        .learning-time { font-size: 0.75em; color: rgba(255,255,255,0.35); margin-top: 4px; }
+        .learning-badge {
+            display: inline-block;
+            margin-top: 6px;
+            padding: 3px 10px;
+            border-radius: 10px;
+            font-size: 0.75em;
+            font-weight: 500;
+        }
+        .learning-badge.ok { background: rgba(0, 230, 118, 0.15); color: var(--neon-green); }
+        .learning-badge.wait { background: rgba(255, 145, 0, 0.15); color: var(--neon-orange); }
+        
+        .system-info {
+            background: rgba(13, 17, 38, 0.6);
+            border-radius: 14px;
+            padding: 20px;
+            border: 1px solid rgba(255, 255, 255, 0.08);
+        }
+        .info-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 8px 0;
+            border-bottom: 1px solid rgba(255,255,255,0.05);
+            font-size: 0.88em;
+        }
+        .info-row:last-child { border-bottom: none; }
+        .info-key { color: rgba(255,255,255,0.45); }
+        .info-val { color: var(--neon-cyan); font-weight: 500; }
+        
+        @media (max-width: 768px) {
+            .stats-grid { grid-template-columns: repeat(2, 1fr); }
+            .service-grid { grid-template-columns: 1fr; }
+            .cron-grid { grid-template-columns: 1fr; }
+        }
+        
+        @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+        .spinning { animation: spin 1s linear infinite; }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>📊 数据中心</h1>
+        <div class="header-actions">
+            <span class="last-update" id="lastUpdate">--</span>
+            <button class="refresh-btn" id="refreshBtn" onclick="loadAll()">
+                🔄 刷新
+            </button>
+        </div>
+    </div>
+    
+    <div class="container">
+        <!-- 核心统计 -->
+        <div class="section">
+            <div class="section-title"><span>📈</span> 系统总览</div>
+            <div class="stats-grid">
+                <div class="stat-card green">
+                    <div class="stat-icon">✅</div>
+                    <div class="stat-value" id="stat-services">-</div>
+                    <div class="stat-label">运行服务</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-icon">⏰</div>
+                    <div class="stat-value" id="stat-crons">-</div>
+                    <div class="stat-label">定时任务</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-icon">📚</div>
+                    <div class="stat-value" id="stat-stages">89</div>
+                    <div class="stat-label">学习阶段</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-icon">⏱️</div>
+                    <div class="stat-value" id="stat-hours">278h</div>
+                    <div class="stat-label">学习时长</div>
+                </div>
+                <div class="stat-card orange">
+                    <div class="stat-icon">📖</div>
+                    <div class="stat-value" id="stat-notes">400+</div>
+                    <div class="stat-label">学习笔记</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-icon">🔧</div>
+                    <div class="stat-value" id="stat-skills">134+</div>
+                    <div class="stat-label">Skills</div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- 服务状态 -->
+        <div class="section">
+            <div class="section-title"><span>🔧</span> 服务状态</div>
+            <div class="service-grid" id="servicesGrid"></div>
+        </div>
+        
+        <!-- 今日学习推送 -->
+        <div class="section">
+            <div class="section-title"><span>📚</span> 今日学习推送</div>
+            <div class="learning-grid" id="learningGrid"></div>
+        </div>
+        
+        <!-- 定时任务 -->
+        <div class="section">
+            <div class="section-title"><span>⏰</span> 定时任务</div>
+            <div class="cron-grid" id="cronGrid"></div>
+        </div>
+        
+        <!-- 系统信息 -->
+        <div class="section">
+            <div class="section-title"><span>💻</span> 系统信息</div>
+            <div class="system-info">
+                <div class="info-row">
+                    <span class="info-key">OpenClaw 版本</span>
+                    <span class="info-val">2026.5.7</span>
+                </div>
+                <div class="info-row">
+                    <span class="info-key">Gateway 端口</span>
+                    <span class="info-val">18789</span>
+                </div>
+                <div class="info-row">
+                    <span class="info-key">工作目录</span>
+                    <span class="info-val">~/.openclaw/workspace</span>
+                </div>
+                <div class="info-row">
+                    <span class="info-key">服务守护</span>
+                    <span class="info-val">每1小时</span>
+                </div>
+                <div class="info-row">
+                    <span class="info-key">Subagent清理</span>
+                    <span class="info-val">每周日 03:00</span>
+                </div>
+                <div class="info-row">
+                    <span class="info-key">知识中心API</span>
+                    <span class="info-val">localhost:3001</span>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        const SERVICES = [
+            { name: 'OpenClaw Gateway', port: 18789, icon: '🌐' },
+            { name: 'ClawBot Vite', port: 5174, icon: '⚛️' },
+            { name: '金蝶前端', port: 5173, icon: '🎨' },
+            { name: '金蝶后端', port: 8765, icon: '🖥️' },
+            { name: '知识中心API', port: 3001, icon: '🔧' },
+        ]
+        
+        const CRON_JOBS = [
+            { name: '🔧 服务守护', schedule: '每1小时', jobId: 'f44887ee' },
+            { name: '🤖 AI人工智能', schedule: '11:00', jobId: 'a03b64db' },
+            { name: '🧠 心理学', schedule: '12:00', jobId: '1183a5ee' },
+            { name: '📚 会计', schedule: '14:00', jobId: '75bfacf3' },
+            { name: '🌿 中医', schedule: '15:00', jobId: 'dc7aee64' },
+            { name: '📜 中国历史', schedule: '17:00', jobId: 'c80db379' },
+            { name: '🌙 每日进化', schedule: '22:00', jobId: 'fa28bf82' },
+            { name: '🧹 Subagent清理', schedule: '每周日03:00', jobId: '0584d42e' },
+            { name: '📢 会计报名提醒', schedule: '6月12日09:00', jobId: 'e526fef6' },
+        ]
+        
+        const LEARNING_TOPICS = [
+            { key: 'ai', label: 'AI人工智能', icon: '🤖', schedule: '11:00' },
+            { key: 'psychology', label: '心理学', icon: '🧠', schedule: '12:00' },
+            { key: 'accounting', label: '会计', icon: '📚', schedule: '14:00' },
+            { key: 'tcm', label: '中医', icon: '🌿', schedule: '15:00' },
+            { key: 'history', label: '中国历史', icon: '📜', schedule: '17:00' },
+        ]
+        
+        async function checkPort(port) {
+            const start = Date.now()
+            try {
+                const resp = await fetch(`http://localhost:${port}/`, { 
+                    method: 'HEAD',
+                    signal: AbortSignal.timeout(2000)
+                })
+                return { port, status: 'online', latency: Date.now() - start }
+            } catch {
+                return { port, status: 'offline', latency: null }
+            }
+        }
+        
+        async function loadServices() {
+            const results = await Promise.all(SERVICES.map(s => checkPort(s.port)))
+            
+            const grid = document.getElementById('servicesGrid')
+            grid.innerHTML = results.map(r => {
+                const svc = SERVICES.find(s => s.port === r.port)
+                return `
+                    <div class="service-card">
+                        <div class="service-info">
+                            <span class="service-icon">${svc.icon}</span>
+                            <div>
+                                <div class="service-name">${svc.name}</div>
+                                <div class="service-port">端口: ${r.port}</div>
+                            </div>
+                        </div>
+                        <div>
+                            <span class="service-status ${r.status}">${r.status === 'online' ? '● 运行中' : '● 离线'}</span>
+                            ${r.latency ? `<div class="service-latency">${r.latency}ms</div>` : ''}
+                        </div>
+                    </div>
+                `
+            }).join('')
+            
+            const onlineCount = results.filter(r => r.status === 'online').length
+            document.getElementById('stat-services').textContent = onlineCount + '/' + SERVICES.length
+        }
+        
+        async function loadLearningStatus() {
+            try {
+                const resp = await fetch('http://localhost:3001/api/status')
+                if (!resp.ok) throw new Error('API失败')
+                const data = await resp.json()
+                
+                const grid = document.getElementById('learningGrid')
+                grid.innerHTML = LEARNING_TOPICS.map(t => {
+                    const sent = data[t.key]?.sent === true
+                    return `
+                        <div class="learning-card ${sent ? 'sent' : 'pending'}">
+                            <div class="learning-icon">${t.icon}</div>
+                            <div class="learning-label">${t.label}</div>
+                            <div class="learning-time">⏰ ${t.schedule}</div>
+                            <span class="learning-badge ${sent ? 'ok' : 'wait'}">${sent ? '✅ 已推送' : '⏳ 等待'}</span>
+                        </div>
+                    `
+                }).join('')
+            } catch (e) {
+                document.getElementById('learningGrid').innerHTML = '<div style="color:rgba(255,255,255,0.4);padding:20px;">无法加载推送状态: ' + e.message + '</div>'
+            }
+        }
+        
+        function renderCronGrid() {
+            const grid = document.getElementById('cronGrid')
+            grid.innerHTML = CRON_JOBS.map(c => `
+                <div class="cron-card">
+                    <div class="cron-header">
+                        <div>
+                            <div class="cron-name">${c.name}</div>
+                            <div class="cron-schedule">⏰ ${c.schedule}</div>
+                        </div>
+                        <span class="cron-status pending">⏳ 未知</span>
+                    </div>
+                    <div class="cron-next">下次: --</div>
+                </div>
+            `).join('')
+        }
+        
+        function updateLastUpdate() {
+            const now = new Date()
+            document.getElementById('lastUpdate').textContent = 
+                '更新: ' + now.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit', second: '2-digit' })
+        }
+        
+        async function loadAll() {
+            const btn = document.getElementById('refreshBtn')
+            btn.classList.add('loading')
+            btn.textContent = '刷新中...'
+            
+            await Promise.all([
+                loadServices(),
+                loadLearningStatus(),
+            ])
+            
+            updateLastUpdate()
+            btn.classList.remove('loading')
+            btn.textContent = '🔄 刷新'
+        }
+        
+        // 初始化
+        renderCronGrid()
+        loadAll()
+        
+        // 每60秒自动刷新
+        setInterval(loadAll, 60000)
+    </script>
+</body>
+</html>

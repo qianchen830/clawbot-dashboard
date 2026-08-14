@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html>
+<head><title>Network Test</title></head>
+<body>
+<h1>服务检查测试</h1>
+<div id="results"></div>
+<script>
+const SERVICES = [
+  {name: '18789 Gateway', url: 'http://localhost:18789/'},
+  {name: '5173 金蝶', url: 'http://172.19.30.96:5173/'},
+  {name: '5174 ClawBot', url: 'http://172.19.30.96:5174/'},
+  {name: '8765 金蝶后端', url: 'http://172.19.30.96:8765/'},
+  {name: '3001 API', url: 'http://172.19.30.96:3001/'},
+];
+async function test() {
+  const results = document.getElementById('results');
+  for (const s of SERVICES) {
+    try {
+      const resp = await fetch(s.url, {method:'HEAD', signal:AbortSignal.timeout(2000)});
+      results.innerHTML += `<p style="color:green">✅ ${s.name}: ${resp.status}</p>`;
+    } catch(e) {
+      results.innerHTML += `<p style="color:red">❌ ${s.name}: ${e.message}</p>`;
+    }
+  }
+}
+test();
+</script>
+</body>
+</html>
