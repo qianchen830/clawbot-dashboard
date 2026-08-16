@@ -488,6 +488,39 @@ app.use('/capcut-mate', async (req, res) => {
   }
 })
 
+// ── 售前管理网站反向代理 ────────────────────────────────────────────────
+app.use('/presale/api', (req, res) => {
+  const options = {
+    hostname: 'localhost',
+    port: 3210,
+    path: '/api' + req.url.slice(req.url.indexOf('/api') + 4),
+    method: req.method,
+    headers: { ...req.headers, host: 'localhost:3210' },
+  }
+  const proxyReq = http.request(options, (proxyRes) => {
+    res.writeHead(proxyRes.statusCode, proxyRes.headers)
+    proxyRes.pipe(res, { end: true })
+  })
+  proxyReq.on('error', (e) => res.status(502).json({ error: e.message }))
+  if (req.method !== 'GET') req.pipe(proxyReq, { end: true }); else proxyReq.end()
+})
+
+app.use('/presale', (req, res) => {
+  const options = {
+    hostname: 'localhost',
+    port: 3210,
+    path: req.url,
+    method: req.method,
+    headers: { ...req.headers, host: 'localhost:3210' },
+  }
+  const proxyReq = http.request(options, (proxyRes) => {
+    res.writeHead(proxyRes.statusCode, proxyRes.headers)
+    proxyRes.pipe(res, { end: true })
+  })
+  proxyReq.on('error', (e) => res.status(502).json({ error: e.message }))
+  if (req.method !== 'GET') req.pipe(proxyReq, { end: true }); else proxyReq.end()
+})
+
 // ── Fleet 实例集群 API ────────────────────────────────────────────────────
 const FLEET_INSTANCES_DIR = '/home/openclaw/docker-openclaw/instances'
 
@@ -552,6 +585,7 @@ function loadFleetInstances() {
     const mainCfg = JSON.parse(fs.readFileSync('/home/openclaw/.openclaw/openclaw.json', 'utf8'))
     const gw = mainCfg.gateway || {}
     const feishu = mainCfg.channels?.feishu || {}
+    const fleet = mainCfg.fleet || {}
     masterEntry = {
       id: 'master',
       name: 'ClawBot 主控',
@@ -565,6 +599,9 @@ function loadFleetInstances() {
       feishu_connected: !!feishu.enabled,
       created_at: 0,
       is_master: true,
+      runtime: 'wsl',
+      isLocked: !!fleet.locked,
+      lockedAt: fleet.lockedAt || null,
       model_info: extractModelInfo(mainCfg),
     }
   } catch {}
@@ -578,6 +615,7 @@ function loadFleetInstances() {
       let feishu_app_id = '', feishu_app_secret = '', feishu_connected = false, gateway_token = ''
       let model_info = null
       const instCfgPath = `${FLEET_INSTANCES_DIR}/${id}/.openclaw/openclaw.json`
+      let isLocked = false, lockedAt = null
       if (fs.existsSync(instCfgPath)) {
         try {
           const instCfg = JSON.parse(fs.readFileSync(instCfgPath, 'utf8'))
@@ -586,6 +624,9 @@ function loadFleetInstances() {
           feishu_connected = instCfg.channels?.feishu?.enabled || false
           gateway_token = instCfg.gateway?.auth?.token || instCfg.gateway?.remote?.token || ''
           model_info = extractModelInfo(instCfg)
+          const fleet = instCfg.fleet || {}
+          isLocked = !!fleet.locked
+          lockedAt = fleet.lockedAt || null
         } catch {}
       }
       instances.push({
@@ -597,6 +638,8 @@ function loadFleetInstances() {
         feishu_app_name: null,  // 实时从飞书 API 获取
         feishu_app_secret,
         feishu_connected,
+        isLocked,
+        lockedAt,
       })
     } catch {}
   }
@@ -718,6 +761,73 @@ app.get('/api/fleet/instances/:id/health', async (req, res) => {
   } catch (e) { res.status(500).json({ error: e.message }) }
 })
 
+// ====== Fleet Lock API (per-instance) ======
+const fs2 = require('fs')
+const FLEET_INSTANCES_DIR2 = '/home/openclaw/docker-openclaw/instances'
+
+function getInstanceLockState(instanceId) {
+  const cfgPath = `${FLEET_INSTANCES_DIR2}/${instanceId}/.openclaw/openclaw.json`
+  try {
+    if (!fs2.existsSync(cfgPath)) return { isLocked: false, error: 'instance_not_found' }
+    const cfg = JSON.parse(fs2.readFileSync(cfgPath, 'utf-8'))
+    const fleet = cfg.fleet || {}
+    return {
+      isLocked: !!fleet.locked,
+      lockedAt: fleet.lockedAt || null,
+      lockedBy: fleet.lockedBy || null,
+    }
+  } catch { return { isLocked: false, error: 'read_error' } }
+}
+
+function setInstanceLock(instanceId, locked) {
+  const cfgPath = `${FLEET_INSTANCES_DIR2}/${instanceId}/.openclaw/openclaw.json`
+  const cfg = JSON.parse(fs2.readFileSync(cfgPath, 'utf-8'))
+  cfg.fleet = cfg.fleet || {}
+  if (locked) {
+    cfg.fleet.locked = true
+    cfg.fleet.lockedAt = new Date().toISOString()
+    cfg.fleet.lockedBy = 'dashboard'
+  } else {
+    delete cfg.fleet.locked
+    delete cfg.fleet.lockedAt
+    delete cfg.fleet.lockedBy
+  }
+  fs2.writeFileSync(cfgPath, JSON.stringify(cfg, null, 2), 'utf-8')
+  return getInstanceLockState(instanceId)
+}
+
+// GET /api/fleet/lock-status?instance=shortvideo
+app.get('/api/fleet/lock-status', (req, res) => {
+  const { instance } = req.query
+  if (!instance) return res.json({ error: 'instance param required' }, 400)
+  res.json(getInstanceLockState(instance))
+})
+
+// POST /api/fleet/lock  body: { instance }
+app.post('/api/fleet/lock', (req, res) => {
+  const { instance } = req.body || {}
+  if (!instance) return res.status(400).json({ error: 'instance param required' })
+  const state = getInstanceLockState(instance)
+  if (state.error) return res.status(404).json({ error: state.error })
+  if (state.isLocked) return res.json({ success: false, message: 'Already locked.', lockedAt: state.lockedAt })
+  const result = setInstanceLock(instance, true)
+  res.json({ success: true, message: `Instance '${instance}' locked.`, ...result })
+})
+
+// POST /api/fleet/unlock  body: { instance }
+app.post('/api/fleet/unlock', (req, res) => {
+  const { instance } = req.body || {}
+  if (!instance) return res.status(400).json({ error: 'instance param required' })
+  const state = getInstanceLockState(instance)
+  if (state.error) return res.status(404).json({ error: state.error })
+  if (!state.isLocked) return res.json({ success: false, message: 'Already unlocked.' })
+  const result = setInstanceLock(instance, false)
+  res.json({ success: true, message: `Instance '${instance}' unlocked.`, ...result })
+})
+
+// GET /api/fleet/instances  ←  already returns fleet lock info (enhanced below)
+
+
 // ====== Git Management API ======
 const GIT_REPOS = [
   { name: 'ClawBot Workspace', path: '/home/openclaw/.openclaw/workspace', github: 'clawbot-workspace' },
@@ -726,6 +836,7 @@ const GIT_REPOS = [
   { name: '金蝶交付系统', path: '/mnt/d/kingdee-web', github: 'kingdee-web' },
   { name: 'Agent Bridge', path: '/home/openclaw/.openclaw/workspace/agent-bridge/bridge', github: 'agent-bridge' },
   { name: 'Fleet Controller', path: '/home/openclaw/.openclaw/workspace/plugins/fleet-controller', github: 'fleet-controller' },
+  { name: '售前管理网站', path: '/home/openclaw/.openclaw/workspace/webdev-projects/presale', github: 'presale-webdev' },
 ]
 
 function gitExec(args, cwd) {
@@ -1291,7 +1402,7 @@ app.get('/api/token/quota', async (req, res) => {
       modelName: cfg.model_name,
       monthlyQuotaCalls: cfg.monthlyQuotaCalls,
       billingDay: cfg.billingDay,
-      period: { start: periodStart.toISOString().slice(0, 10), end: periodEnd.toISOString().slice(0, 10), daysRemaining: Math.ceil((periodEnd - now) / 86400000) },
+      period: { start: bp.start, end: bp.end, daysRemaining: bp.daysRemaining },
       usage: {
         calls: usage.calls,
         callsRemaining: Math.max(0, cfg.monthlyQuotaCalls - currentUsage.calls),

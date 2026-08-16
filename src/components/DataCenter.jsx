@@ -312,10 +312,6 @@ export default function DataCenter() {
   const [services, setServices] = useState([])
   const [loading, setLoading] = useState(false)
   const [lastUpdate, setLastUpdate] = useState(null)
-  const [activeTab, setActiveTab] = useState('system')
-  const [tokenStats, setTokenStats] = useState(null)
-  const [tokenLoading, setTokenLoading] = useState(false)
-  const [tokenRange, setTokenRange] = useState('month')
 
   const loadData = async () => {
     setLoading(true)
@@ -330,20 +326,7 @@ export default function DataCenter() {
     setLoading(false)
   }
 
-  const loadTokenStats = async (range) => {
-    setTokenLoading(true)
-    try {
-      const resp = await fetch(`${API_BASE}/api/token/stats?range=${range}`)
-      const data = await resp.json()
-      setTokenStats(data)
-    } catch (e) {
-      console.error('加载Token统计失败:', e)
-    }
-    setTokenLoading(false)
-  }
-
   useEffect(() => { loadData() }, [])
-  useEffect(() => { loadTokenStats(tokenRange) }, [tokenRange])
 
   return (
     <div className="data-center">
@@ -354,27 +337,13 @@ export default function DataCenter() {
             {lastUpdate ? `更新: ${lastUpdate.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })}` : '--'}
           </span>
           <button className={`dc-refresh-btn ${loading ? 'loading' : ''}`}
-            onClick={() => { loadData(); loadTokenStats(tokenRange) }} disabled={loading}>
+            onClick={() => { loadData() }} disabled={loading}>
             🔄 {loading ? '刷新中...' : '刷新'}
           </button>
         </div>
       </div>
 
-      <div className="dc-tabs">
-        <button className={`dc-tab ${activeTab === 'system' ? 'active' : ''}`} onClick={() => setActiveTab('system')}>系统总览</button>
-        <button className={`dc-tab ${activeTab === 'token' ? 'active' : ''}`} onClick={() => setActiveTab('token')}>Token 用量</button>
-      </div>
-
-      {activeTab === 'system' ? (
-        <SystemTab services={services} loading={loading} lastUpdate={lastUpdate} onRefresh={loadData} />
-      ) : (
-        <TokenStatsPanel
-          stats={tokenStats}
-          loading={tokenLoading}
-          range={tokenRange}
-          onRangeChange={(r) => { setTokenRange(r); loadTokenStats(r) }}
-        />
-      )}
+      <SystemTab services={services} loading={loading} lastUpdate={lastUpdate} onRefresh={loadData} />
     </div>
   )
 }

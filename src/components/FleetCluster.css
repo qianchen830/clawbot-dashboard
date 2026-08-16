@@ -160,6 +160,8 @@
 .fc-btn.danger:hover:not(:disabled) { background: rgba(255,64,129,0.12); color: #ff4081; border-color: rgba(255,64,129,0.25); }
 .fc-btn.success:hover:not(:disabled) { background: rgba(0,230,118,0.1); color: #00e676; border-color: rgba(0,230,118,0.2); }
 .fc-btn.primary { background: rgba(0,229,255,0.12); color: #00e5ff; border-color: rgba(0,229,255,0.2); }
+.fc-btn.warning:hover:not(:disabled) { background: rgba(255,145,0,0.12); color: #ff9100; border-color: rgba(255,145,0,0.25); }
+.fc-btn.sm.warning { color: #ff9100; }
 .fc-btn.sm { padding: 4px 9px; font-size: 11px; }
 
 /* Edit Form */
@@ -233,6 +235,38 @@
 .feishu-badge.disconnected {
   background: rgba(255,255,255,0.04);
   color: #555;
+}
+
+/* Model chain display */
+.fc-model-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding-top: 8px;
+  margin-top: 8px;
+  border-top: 1px solid rgba(255,255,255,0.04);
+}
+.fc-model-chain {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  flex: 1;
+  min-width: 0;
+}
+.fc-model-primary {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #ffd740;
+}
+.fc-model-fallbacks {
+  font-size: 10.5px;
+  color: rgba(255,255,255,0.4);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 /* ---- Section Labels ---- */

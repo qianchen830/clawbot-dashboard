@@ -1,11 +1,12 @@
 import { useState, useEffect } from 'react'
-import { Home, BookOpen, BarChart2, RefreshCw, Wrench, Rocket, Server, GitBranch } from 'lucide-react'
+import { Home, BookOpen, BarChart2, RefreshCw, Wrench, Rocket, Server, GitBranch, Zap } from 'lucide-react'
 import './NavSidebar.css'
 
 const API_BASE = ''
 const NAV_ITEMS = [
   { id: 'home', label: '首页', icon: Home, view: 'home' },
   { id: 'fleet', label: '实例集群', icon: Server, view: 'fleet' },
+  { id: 'token', label: 'Token用量', icon: Zap, view: 'token' },
   { id: 'skills', label: '技能库', icon: Wrench, view: 'skills' },
   { id: 'knowledge', label: '知识中心', icon: BookOpen, view: 'knowledge' },
   { id: 'git', label: 'Git管理', icon: GitBranch, view: 'git' },

@@ -10,6 +10,7 @@ import SkillLibrary from './components/SkillLibrary'
 import DeliveryCockpit from './components/DeliveryCockpit'
 import StatusBar from './components/StatusBar'
 import FleetCluster from './components/FleetCluster'
+import TokenUsage from './components/TokenUsage'
 import Toast from './components/Toast'
 import { useState, useEffect } from 'react'
 import './App.css'
@@ -55,6 +56,8 @@ export default function App() {
         return <SkillLibrary />
       case 'fleet':
         return <FleetCluster />
+      case 'token':
+        return <TokenUsage />
       case 'delivery':
         return <DeliveryCockpit />
       case 'home':

@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
-import { RefreshCw, Edit2, Play, Square, RotateCcw, Server, Wifi, WifiOff, ExternalLink, Copy, Crown, Cpu, Gauge, Activity } from 'lucide-react'
+import { RefreshCw, Edit2, Play, Square, RotateCcw, Server, Wifi, WifiOff, ExternalLink, Copy, Crown, Cpu, Gauge, Activity, Zap, Lock, Unlock } from 'lucide-react'
 import './FleetCluster.css'
 
 function toast(msg) {
@@ -38,6 +38,28 @@ function InstanceCard({ inst, onSave, onRefresh }) {
   const [name, setName] = useState(String(inst.name || inst.id || ''))
   const [direction, setDirection] = useState(String(inst.direction || ''))
   const [saving, setSaving] = useState(false)
+  const [locking, setLocking] = useState(false)
+  const [isLocked, setIsLocked] = useState(!!inst.isLocked)
+
+  const handleLockToggle = useCallback(async () => {
+    setLocking(true)
+    try {
+      const url = isLocked ? '/api/fleet/unlock' : '/api/fleet/lock'
+      const res = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ instance: inst.id }),
+      })
+      const data = await res.json()
+      if (data.success) {
+        setIsLocked(!isLocked)
+        toast(isLocked ? `已解锁 ${inst.id}` : `已锁定 ${inst.id}`)
+      } else {
+        toast(data.message || '操作失败')
+      }
+    } catch { toast('锁定操作失败') }
+    finally { setLocking(false) }
+  }, [inst.id, isLocked])
 
   const handleSave = useCallback(async () => {
     setSaving(true)
@@ -66,8 +88,10 @@ function InstanceCard({ inst, onSave, onRefresh }) {
 
   const isOnline = inst.status === 'online'
   const isMaster = inst.is_master
+  const isWslHost = inst.container === null // WSL宿主机（系统服务，无容器）
+  const isModeration = inst.id === 'moderation' // 审查员实例
 
-  const borderColor = isMaster ? '#7c4dff' : isOnline ? '#00e676' : inst.status === 'offline' ? '#ff4081' : '#ff9100'
+  const borderColor = isModeration ? '#ff6f00' : isMaster ? '#7c4dff' : isWslHost && isOnline ? '#00bcd4' : isOnline ? '#00e676' : inst.status === 'offline' ? '#ff4081' : '#ff9100'
 
   return (
     <div className="fleet-card" style={{ '--border-color': borderColor }}>
@@ -78,6 +102,7 @@ function InstanceCard({ inst, onSave, onRefresh }) {
             {isMaster && <Crown size={13} className="fc-master-icon" />}
             <span className="fc-name">{inst.name || inst.id}</span>
             {isMaster && <span className="fc-master-tag">主控</span>}
+            {isLocked && <span className="fleet-pill locked" style={{background:'#2a1a0a',color:'#ff9100',border:'1px solid #ff9100',fontSize:'10px',padding:'1px 6px',borderRadius:'10px',marginLeft:'4px'}}>🔒</span>}
           </div>
           <StatusBadge status={inst.status} />
         </div>
@@ -90,7 +115,25 @@ function InstanceCard({ inst, onSave, onRefresh }) {
             <a className="fc-btn sm" href={`http://localhost:${inst.port}/`} target="_blank" rel="noreferrer">
               <ExternalLink size={13}/> 控制台
             </a>
-            {!isMaster && (
+            {isWslHost && !isMaster && !isModeration && (
+              <span className="fleet-pill wsl-host-tag" style={{fontSize:'10px',padding:'1px 6px',borderRadius:'10px',background:'rgba(0,188,212,0.1)',color:'#00bcd4',border:'1px solid rgba(0,188,212,0.2)',marginRight:'2px'}}>
+                🖥️ 宿主机
+              </span>
+            )}
+            {isModeration && (
+              <span className="fleet-pill wsl-host-tag" style={{fontSize:'10px',padding:'1px 6px',borderRadius:'10px',background:'rgba(255,111,0,0.1)',color:'#ff6f00',border:'1px solid rgba(255,111,0,0.2)',marginRight:'2px'}}>
+                🔍 审查员
+              </span>
+            )}
+            <button
+              className={`fc-btn sm ${isLocked ? 'warning' : ''}`}
+              onClick={handleLockToggle}
+              disabled={locking}
+              title={isLocked ? `已锁定 ${inst.id}，点击解锁` : `锁定 ${inst.id}`}
+            >
+              {locking ? '...' : isLocked ? <Unlock size={13}/> : <Lock size={13}/>}
+            </button>
+            {!isMaster && !isModeration && (
               <>
                 <button className="fc-btn sm" onClick={() => setEditing(true)}><Edit2 size={13}/></button>
                 {isOnline ? (
@@ -139,6 +182,22 @@ function InstanceCard({ inst, onSave, onRefresh }) {
               <span className="fc-info-label">飞书</span>
               <FeishuBadge inst={inst} />
             </div>
+
+            {inst.model_info && (
+              <div className="fc-model-row">
+                <span className="fc-info-label"><Zap size={11}/> 主模型</span>
+                <div className="fc-model-chain">
+                  <span className="fc-model-primary">
+                    <Crown size={10}/> {inst.model_info.primaryLabel}
+                  </span>
+                  {inst.model_info.chainLabels && inst.model_info.chainLabels.length > 1 && (
+                    <span className="fc-model-fallbacks">
+                      → {inst.model_info.chainLabels.slice(1).join(' → ')}
+                    </span>
+                  )}
+                </div>
+              </div>
+            )}
           </>
         )}
       </div>
