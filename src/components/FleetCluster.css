@@ -358,3 +358,50 @@
   display: flex;
 }
 .fleet-search-clear:hover { color: #777; }
+
+/* ── Service Monitor ── */
+.svc-table {
+  background: #16162a;
+  border: 1px solid rgba(255,255,255,0.07);
+  border-radius: 10px;
+  overflow: hidden;
+}
+.svc-header {
+  display: grid;
+  grid-template-columns: 24px 160px 60px 64px 1fr 72px 52px;
+  gap: 8px;
+  padding: 8px 14px;
+  font-size: 11px;
+  color: #555;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  border-bottom: 1px solid rgba(255,255,255,0.05);
+  background: rgba(0,0,0,0.15);
+}
+.svc-row {
+  display: grid;
+  grid-template-columns: 24px 160px 60px 64px 1fr 72px 52px;
+  gap: 8px;
+  padding: 8px 14px;
+  align-items: center;
+  font-size: 12px;
+  border-bottom: 1px solid rgba(255,255,255,0.03);
+  transition: background 0.12s;
+}
+.svc-row:last-child { border-bottom: none; }
+.svc-row:hover { background: rgba(255,255,255,0.025); }
+.svc-dot {
+  width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0;
+}
+.svc-dot.online { background: #00e676; box-shadow: 0 0 5px rgba(0,230,118,0.5); }
+.svc-dot.offline { background: #ff4d6a; }
+.svc-dot.checking { background: #f59e0b; animation: pulse 1s infinite; }
+@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
+.svc-name { color: #ccc; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.svc-type { color: #666; display: flex; align-items: center; }
+.svc-port { color: #888; font-family: 'Courier New', monospace; }
+.svc-desc { color: #555; font-size: 11px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.svc-status { font-size: 11px; }
+.svc-status.ok { color: #00e676; }
+.svc-status.fail { color: #ff4d6a; }
+.svc-status.loading { color: #f59e0b; }

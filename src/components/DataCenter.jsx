@@ -1,6 +1,23 @@
 import { useState, useEffect } from 'react'
-import { CRON_JOBS, API_BASE, checkAllServices, fetchCronJobs } from '../services/config'
+import { RefreshCw } from 'lucide-react'
+import { CRON_JOBS, API_BASE, SERVICES_CONFIG, checkAllServices, fetchCronJobs } from '../services/config'
 import './DataCenter.css'
+
+// 直接用 API 返回数据渲染（server 端检测，无 CORS 问题）
+function ServiceRow({ svc }) {
+  return (
+    <div className="dc-svc-row">
+      <span className={`dc-svc-dot ${svc.online ? 'online' : 'offline'}`} />
+      <span className="dc-svc-icon">{svc.icon || '🔧'}</span>
+      <span className="dc-svc-name">{svc.name}</span>
+      <span className="dc-svc-port">:{svc.port}</span>
+      <span className="dc-svc-desc">{svc.description}</span>
+      <span className={`dc-svc-status ${svc.online ? 'ok' : 'fail'}`}>
+        {svc.online ? '在线' : '离线'}
+      </span>
+    </div>
+  )
+}
 
 function ServiceStatusBadge({ online }) {
   if (online === true) return <span className="dc-service-status online">● 运行中</span>
@@ -46,22 +63,24 @@ function SystemTab({ services, loading, lastUpdate, onRefresh }) {
         </div>
       </div>
 
-      {/* 服务状态 */}
+      {/* 服务状态表格 */}
       <div className="dc-section">
-        <div className="dc-section-title">🔧 服务状态</div>
-        <div className="dc-service-grid">
-          {services.map(s => (
-            <div key={s.port} className="dc-service-card">
-              <div className="dc-service-info">
-                <span className="dc-service-icon">{s.icon || '🔧'}</span>
-                <div>
-                  <div className="dc-service-name">{s.name}</div>
-                  <div className="dc-service-port">端口: {s.port}</div>
-                </div>
-              </div>
-              <ServiceStatusBadge online={s.online} />
-            </div>
-          ))}
+        <div className="dc-section-title">🔧 系统服务监控</div>
+        <div className="dc-svc-table">
+          <div className="dc-svc-header">
+            <span></span>
+            <span>名称</span>
+            <span>端口</span>
+            <span>说明</span>
+            <span>状态</span>
+          </div>
+          {SERVICES_CONFIG.map(cfg => {
+            const apiSvc = services.find(s => s.port === cfg.port)
+            const merged = { ...cfg, online: apiSvc ? apiSvc.online : false }
+            return (
+              <ServiceRow key={cfg.port} svc={merged} />
+            )
+          })}
         </div>
       </div>
 

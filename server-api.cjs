@@ -11,7 +11,19 @@ app.use(express.json())
 
 function execCmd(cmd) {
   return new Promise((resolve, reject) => {
-    const proc = spawn('/bin/bash', ['-c', cmd], { timeout: 30000 })
+    const trimmed = cmd.trim()
+    // 后台命令（以 & 结尾）：detach + ignore stdio，避免管道挂起导致接口不返回
+    if (trimmed.endsWith('&')) {
+      const proc = spawn('/bin/bash', ['-c', trimmed], {
+        detached: true,
+        stdio: 'ignore',
+      })
+      proc.unref()
+      // 给 bash 一点时间 fork 子进程，然后返回
+      setTimeout(() => resolve({ code: 0, stdout: '', stderr: '' }), 300)
+      return
+    }
+    const proc = spawn('/bin/bash', ['-c', trimmed], { timeout: 30000 })
     let stdout = '', stderr = ''
     proc.stdout.on('data', d => stdout += d)
     proc.stderr.on('data', d => stderr += d)
@@ -20,14 +32,96 @@ function execCmd(cmd) {
   })
 }
 
+// 允许通过 /api/exec 执行的命令模式（项目启停 + tunnel + 查询）
+// 这是本地管理台，仅监听 localhost，不对外暴露，所以采用宽松但有边界的白名单
+const EXEC_ALLOWED_PATTERNS = [
+  /python3.*feishu-dedup\.py/,                          // 飞书去重
+  /^systemctl --user (start|stop|restart|status|is-active)\s+[\w.@-]+/,  // systemd 用户服务
+  /^fuser( -k)?\s+\d+\/tcp(\s+2>\/dev\/null)?$/,                   // fuser 按端口杀进程
+  /^pkill -f '[\w./\- ]+'/,                             // pkill（必须引号包裹模式）
+  /^pkill -f [\w./\-]+$/,                               // pkill 简单模式
+  /nohup/,                                               // nohup 后台启动
+  /cloudflared_bin tunnel/,                              // cloudflare tunnel
+  /^ps aux/,                                             // 进程查询
+]
+
+// 禁止：shell 注入、删除、网络下载执行等
+const EXEC_BLOCKED = [/(rm|curl|wget|sudo|chmod|chown|mkfs|dd|reboot|shutdown)/, /[;`]|\$\(/, /&&\s*rm/]
+
+function isCmdAllowed(cmd) {
+  const trimmed = cmd.trim()
+  if (EXEC_BLOCKED.some(re => re.test(trimmed))) return false
+  return EXEC_ALLOWED_PATTERNS.some(re => re.test(trimmed))
+}
+
 app.post('/api/exec', async (req, res) => {
   try {
     const { cmd } = req.body
     if (!cmd) return res.status(400).json({ error: '缺少cmd参数' })
-    const allowed = cmd.match(/^python3.*feishu-dedup\.py/)
-    if (!allowed) return res.status(403).json({ error: '不允许的命令' })
+    if (!isCmdAllowed(cmd)) {
+      console.warn('[exec] blocked command:', cmd)
+      return res.status(403).json({ error: '命令不在白名单内', cmd: cmd.slice(0, 120) })
+    }
     const result = await execCmd(cmd)
     res.json({ code: result.code, stdout: result.stdout, stderr: result.stderr })
+  } catch (e) {
+    res.status(500).json({ error: e.message })
+  }
+})
+
+// ── Cloudflare Tunnel URL 读取（从日志文件） ───────────────────────
+const CF_LOG_MAP = {
+  3210: 'cf-presale',
+  5174: 'cf-clawbot',
+  5173: 'cf-kingdee',
+  3003: 'cf-rent',
+}
+
+app.get('/api/tunnel/:port', (req, res) => {
+  const port = parseInt(req.params.port)
+  const name = CF_LOG_MAP[port]
+  if (!name) return res.status(404).json({ error: `端口 ${port} 未登记 tunnel 日志` })
+  try {
+    const logPath = path.join(process.env.HOME || '/home/openclaw', '.openclaw', `${name}.log`)
+    if (!fs.existsSync(logPath)) return res.json({ url: null, port, log: 'log文件不存在' })
+    const content = fs.readFileSync(logPath, 'utf8')
+    const matches = content.match(/https:\/\/[^\s]+\.trycloudflare\.com\/?/g)
+    const url = matches ? [...new Set(matches)].pop() : null
+    res.json({ url: url ? url.replace(/\/$/, '') : null, port, name })
+  } catch (e) {
+    res.status(500).json({ error: e.message })
+  }
+})
+
+app.post('/api/tunnel/start', (req, res) => {
+  const { port } = req.body
+  if (!port) return res.status(400).json({ error: '缺少port参数' })
+  const name = CF_LOG_MAP[port]
+  const logFile = path.join(process.env.HOME || '/home/openclaw', '.openclaw', `${name || 'cf-' + port}.log`)
+  try {
+    const { execSync } = require('child_process')
+    execSync(`setsid ~/.openclaw/cloudflared_bin tunnel --url http://localhost:${port} > ${logFile} 2>&1 < /dev/null &`, { encoding: 'utf8' })
+    res.json({ ok: true, port, log: logFile })
+  } catch (e) {
+    res.status(500).json({ error: e.message })
+  }
+})
+
+// 停止指定端口的 Cloudflare Tunnel（安全方式，不用 pkill -f 避免自杀）
+app.post('/api/tunnel/stop', (req, res) => {
+  const { port } = req.body
+  if (!port) return res.status(400).json({ error: '缺少port参数' })
+  try {
+    const { execSync } = require('child_process')
+    // 找到该端口对应的 cloudflared PID 并 kill（不使用 pkill -f）
+    const result = execSync(
+      `ps aux | grep 'cloudflared_bin tunnel' | grep -v grep | grep 'localhost:${port}' | awk '{print $2}'`,
+      { encoding: 'utf8', timeout: 5000 }
+    ).trim()
+    if (!result) return res.json({ ok: true, port, killed: 0, msg: '未找到运行中的 tunnel' })
+    const pids = result.split('\n').filter(Boolean)
+    pids.forEach(pid => { try { process.kill(parseInt(pid), 'SIGTERM') } catch {} })
+    res.json({ ok: true, port, killed: pids.length, pids })
   } catch (e) {
     res.status(500).json({ error: e.message })
   }
@@ -106,25 +200,60 @@ app.get('/api/cron-jobs', (req, res) => {
   ])
 })
 
+// 单个端口的在线检测（供项目中心使用）
+app.get('/api/port-check/:port', async (req, res) => {
+  const port = parseInt(req.params.port)
+  if (!port || port < 1 || port > 65535) return res.status(400).json({ online: false, error: 'bad port' })
+  const start = Date.now()
+  try {
+    const resp = await fetch(`http://localhost:${port}/`, { signal: AbortSignal.timeout(2500) })
+    const online = resp.ok === true || (resp.status >= 200 && resp.status < 500)
+    res.json({ online, latency: Date.now() - start, status: resp.status })
+  } catch {
+    res.json({ online: false, latency: null })
+  }
+})
+
+// 按端口杀进程（供项目中心停止服务，避免 pkill -f 自杀问题）
+// 入参: { ports: [3210, 3211] }
+app.post('/api/service/kill', (req, res) => {
+  const ports = Array.isArray(req.body?.ports) ? req.body.ports : (req.body?.port ? [req.body.port] : [])
+  const validPorts = ports.filter(p => Number.isInteger(p) && p > 0 && p < 65536)
+  if (validPorts.length === 0) return res.status(400).json({ error: '缺少有效端口' })
+  const killed = []
+  for (const port of validPorts) {
+    try {
+      const out = execSync(`fuser ${port}/tcp 2>/dev/null || true`, { encoding: 'utf8', timeout: 5000 }).trim()
+      if (out) {
+        const pids = out.split(/\s+/).filter(Boolean)
+        pids.forEach(pid => { try { process.kill(parseInt(pid), 'SIGTERM') } catch {} })
+        killed.push({ port, pids })
+      }
+    } catch {}
+  }
+  res.json({ ok: true, killed })
+})
+
 app.get('/api/service-status', async (req, res) => {
   try {
     const services = [
+      // === 核心基础设施（项目级服务在“项目中心”查看） ===
       { name: 'OpenClaw Gateway', port: 18789, checkHost: 'localhost' },
-      { name: 'ClawBot Vite', port: 5174, checkHost: 'localhost' },
-      { name: '金蝶前端', port: 5173, checkHost: 'localhost' },
-      { name: '金蝶后端', port: 8766, checkHost: 'localhost' },
-      { name: '金蝶任务队列', port: 8768, checkHost: 'localhost' },
       { name: '知识中心API', port: 3001, checkHost: 'localhost' },
-      { name: 'Hermes Bridge', port: 3002, checkHost: 'localhost' },
-      { name: 'Volcano Embedding', port: 3011, checkHost: 'localhost' },
-      { name: 'EKKO WebUI', port: 5175, checkHost: 'localhost' },
-      { name: 'CapCut Mate', port: 30001, checkHost: 'localhost' },
+      { name: '金蝶任务队列', port: 8768, checkHost: 'localhost' },
+      // === OpenClaw 实例集群 ===
       { name: 'Docker-shortvideo', port: 18809, checkHost: 'localhost' },
       { name: 'Docker-kingdee', port: 18829, checkHost: 'localhost' },
       { name: 'Docker-print3d', port: 18849, checkHost: 'localhost' },
       { name: 'Docker-ai-game', port: 18869, checkHost: 'localhost' },
+      { name: 'Docker-webdev', port: 18889, checkHost: 'localhost' },
+      // === 工具/中间件服务 ===
+      { name: 'Hermes Bridge', port: 3002, checkHost: 'localhost' },
+      { name: 'Volcano Embedding', port: 3011, checkHost: 'localhost' },
       { name: 'Hermes Studio', port: 8648, checkHost: 'localhost' },
       { name: 'Hermes Bus', port: 18766, checkHost: 'localhost' },
+      { name: 'CapCut Mate', port: 30001, checkHost: 'localhost' },
+      { name: 'OpenClaw-Proxy', port: 15721, checkHost: 'localhost' },
     ]
     const results = await Promise.all(services.map(async (s) => {
       try {
@@ -493,7 +622,7 @@ app.use('/presale/api', (req, res) => {
   const options = {
     hostname: 'localhost',
     port: 3210,
-    path: '/api' + req.url.slice(req.url.indexOf('/api') + 4),
+    path: '/api' + req.url,
     method: req.method,
     headers: { ...req.headers, host: 'localhost:3210' },
   }
@@ -865,8 +994,8 @@ app.get('/api/git/repos', (req, res) => {
   res.json(result)
 })
 
-app.get('/api/git/log', (req, res) => {
-  const repoPath = req.query.path
+app.post('/api/git/log', (req, res) => {
+  const repoPath = req.body.path || req.query.path
   if (!repoPath) return res.status(400).json({ error: 'missing path' })
   // Fetch up to 200 commits with full date
   const r = gitExec(
@@ -893,8 +1022,8 @@ app.get('/api/git/log', (req, res) => {
   res.json({ commits })
 })
 
-app.get('/api/git/status', (req, res) => {
-  const repoPath = req.query.path
+app.post('/api/git/status', (req, res) => {
+  const repoPath = req.body.path || req.query.path
   if (!repoPath) return res.status(400).json({ error: 'missing path' })
   const r = gitExec('status --porcelain', repoPath)
   if (!r.ok) return res.json({ changes: [] })
@@ -905,12 +1034,20 @@ app.get('/api/git/status', (req, res) => {
   res.json({ changes })
 })
 
+app.post('/api/git/reset', (req, res) => {
+  const { path: repoPath, hash } = req.body
+  if (!repoPath || !hash) return res.status(400).json({ error: 'missing path or hash' })
+  const r = gitExec(`reset --hard ${hash}`, repoPath)
+  if (!r.ok) return res.status(500).json({ error: r.error })
+  res.json({ success: true, output: r.out })
+})
+
 app.post('/api/git/rollback', (req, res) => {
   const { path: repoPath, hash } = req.body
   if (!repoPath || !hash) return res.status(400).json({ error: 'missing path or hash' })
   const r = gitExec(`reset --hard ${hash}`, repoPath)
   if (!r.ok) return res.status(500).json({ error: r.error })
-  res.json({ ok: true, output: r.out })
+  res.json({ success: true, output: r.out })
 })
 
 app.post('/api/git/commit', (req, res) => {

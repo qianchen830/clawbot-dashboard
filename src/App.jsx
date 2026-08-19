@@ -5,6 +5,7 @@ import QuickAccess from './components/QuickAccess'
 import AIToolBox from './components/AIToolBox'
 import KnowledgeCenter from './components/KnowledgeCenter'
 import GitManager from './components/GitManager'
+import ProjectHub from './components/ProjectHub'
 import DataCenter from './components/DataCenter'
 import SkillLibrary from './components/SkillLibrary'
 import DeliveryCockpit from './components/DeliveryCockpit'
@@ -60,6 +61,8 @@ export default function App() {
         return <TokenUsage />
       case 'delivery':
         return <DeliveryCockpit />
+      case 'projects':
+        return <ProjectHub />
       case 'home':
       default:
         return (

@@ -1,5 +1,8 @@
 import { useState, useEffect, useCallback } from 'react'
-import { RefreshCw, Edit2, Play, Square, RotateCcw, Server, Wifi, WifiOff, ExternalLink, Copy, Crown, Cpu, Gauge, Activity, Zap, Lock, Unlock } from 'lucide-react'
+import {
+  RefreshCw, Edit2, Play, Square, RotateCcw, Server, Wifi, WifiOff,
+  ExternalLink, Copy, Crown, Cpu, Activity, Zap, Lock, Unlock, Database
+} from 'lucide-react'
 import './FleetCluster.css'
 
 function toast(msg) {
@@ -12,8 +15,8 @@ function toast(msg) {
 
 function StatusBadge({ status }) {
   const cfg = {
-    online:  { label: '在线', cls: 'online',  icon: <Wifi size={11}/> },
-    offline: { label: '离线', cls: 'offline', icon: <WifiOff size={11}/> },
+    online:    { label: '在线',   cls: 'online',    icon: <Wifi size={11}/> },
+    offline:   { label: '离线',   cls: 'offline',   icon: <WifiOff size={11}/> },
     unhealthy: { label: '异常', cls: 'unhealthy', icon: <Wifi size={11}/> },
   }
   const c = cfg[status] || cfg.unhealthy
@@ -21,15 +24,12 @@ function StatusBadge({ status }) {
 }
 
 function FeishuBadge({ inst }) {
-  if (inst.feishu_connected && inst.feishu_app_name) {
+  if (inst.feishu_connected && inst.feishu_app_name)
     return <span className="feishu-badge connected">✅ {inst.feishu_app_name}</span>
-  }
-  if (inst.feishu_connected && inst.feishu_app_id && inst.feishu_app_id !== '__FEISHU_APP_ID__') {
+  if (inst.feishu_connected && inst.feishu_app_id && inst.feishu_app_id !== '__FEISHU_APP_ID__')
     return <span className="feishu-badge connected">✅ {inst.feishu_app_id.slice(0, 14)}…</span>
-  }
-  if (inst.feishu_connected) {
+  if (inst.feishu_connected)
     return <span className="feishu-badge connected">✅ 已连接</span>
-  }
   return <span className="feishu-badge disconnected">❌ 未配置</span>
 }
 
@@ -88,21 +88,19 @@ function InstanceCard({ inst, onSave, onRefresh }) {
 
   const isOnline = inst.status === 'online'
   const isMaster = inst.is_master
-  const isWslHost = inst.container === null // WSL宿主机（系统服务，无容器）
-  const isModeration = inst.id === 'moderation' // 审查员实例
-
+  const isWslHost = inst.container === null
+  const isModeration = inst.id === 'moderation'
   const borderColor = isModeration ? '#ff6f00' : isMaster ? '#7c4dff' : isWslHost && isOnline ? '#00bcd4' : isOnline ? '#00e676' : inst.status === 'offline' ? '#ff4081' : '#ff9100'
 
   return (
     <div className="fleet-card" style={{ '--border-color': borderColor }}>
-      {/* Card Header */}
       <div className="fc-header">
         <div className="fc-title-row">
           <div className="fc-title-left">
             {isMaster && <Crown size={13} className="fc-master-icon" />}
             <span className="fc-name">{inst.name || inst.id}</span>
             {isMaster && <span className="fc-master-tag">主控</span>}
-            {isLocked && <span className="fleet-pill locked" style={{background:'#2a1a0a',color:'#ff9100',border:'1px solid #ff9100',fontSize:'10px',padding:'1px 6px',borderRadius:'10px',marginLeft:'4px'}}>🔒</span>}
+            {isLocked && <span style={{fontSize:'10px',padding:'1px 6px',borderRadius:'10px',background:'#2a1a0a',color:'#ff9100',border:'1px solid #ff9100',marginLeft:'4px'}}>🔒</span>}
           </div>
           <StatusBadge status={inst.status} />
         </div>
@@ -116,21 +114,12 @@ function InstanceCard({ inst, onSave, onRefresh }) {
               <ExternalLink size={13}/> 控制台
             </a>
             {isWslHost && !isMaster && !isModeration && (
-              <span className="fleet-pill wsl-host-tag" style={{fontSize:'10px',padding:'1px 6px',borderRadius:'10px',background:'rgba(0,188,212,0.1)',color:'#00bcd4',border:'1px solid rgba(0,188,212,0.2)',marginRight:'2px'}}>
-                🖥️ 宿主机
-              </span>
+              <span style={{fontSize:'10px',padding:'1px 6px',borderRadius:'10px',background:'rgba(0,188,212,0.1)',color:'#00bcd4',border:'1px solid rgba(0,188,212,0.2)',marginRight:'2px'}}>🖥️ 宿主机</span>
             )}
             {isModeration && (
-              <span className="fleet-pill wsl-host-tag" style={{fontSize:'10px',padding:'1px 6px',borderRadius:'10px',background:'rgba(255,111,0,0.1)',color:'#ff6f00',border:'1px solid rgba(255,111,0,0.2)',marginRight:'2px'}}>
-                🔍 审查员
-              </span>
+              <span style={{fontSize:'10px',padding:'1px 6px',borderRadius:'10px',background:'rgba(255,111,0,0.1)',color:'#ff6f00',border:'1px solid rgba(255,111,0,0.2)',marginRight:'2px'}}>🔍 审查员</span>
             )}
-            <button
-              className={`fc-btn sm ${isLocked ? 'warning' : ''}`}
-              onClick={handleLockToggle}
-              disabled={locking}
-              title={isLocked ? `已锁定 ${inst.id}，点击解锁` : `锁定 ${inst.id}`}
-            >
+            <button className={`fc-btn sm ${isLocked ? 'warning' : ''}`} onClick={handleLockToggle} disabled={locking} title={isLocked ? `已锁定 ${inst.id}，点击解锁` : `锁定 ${inst.id}`}>
               {locking ? '...' : isLocked ? <Unlock size={13}/> : <Lock size={13}/>}
             </button>
             {!isMaster && !isModeration && (
@@ -159,56 +148,48 @@ function InstanceCard({ inst, onSave, onRefresh }) {
         )}
       </div>
 
-      {/* Card Body */}
-      <div className="fc-body">
-        {editing ? null : (
-          <>
-            <div className="fc-info-grid">
-              <div className="fc-info-item">
-                <span className="fc-info-label"><Activity size={11}/> 端口</span>
-                <span className="fc-info-value">{inst.port}</span>
-              </div>
-              <div className="fc-info-item">
-                <span className="fc-info-label"><Cpu size={11}/> 方向</span>
-                <span className="fc-info-value">{inst.direction || '—'}</span>
-              </div>
-              <div className="fc-info-item">
-                <span className="fc-info-label"><Server size={11}/> 实例ID</span>
-                <span className="fc-info-value fc-id">{inst.id}</span>
+      {!editing && (
+        <div className="fc-body">
+          <div className="fc-info-grid">
+            <div className="fc-info-item">
+              <span className="fc-info-label"><Activity size={11}/> 端口</span>
+              <span className="fc-info-value">{inst.port}</span>
+            </div>
+            <div className="fc-info-item">
+              <span className="fc-info-label"><Cpu size={11}/> 方向</span>
+              <span className="fc-info-value">{inst.direction || '—'}</span>
+            </div>
+            <div className="fc-info-item">
+              <span className="fc-info-label"><Server size={11}/> 实例ID</span>
+              <span className="fc-info-value fc-id">{inst.id}</span>
+            </div>
+          </div>
+          <div className="fc-feishu-row">
+            <span className="fc-info-label">飞书</span>
+            <FeishuBadge inst={inst} />
+          </div>
+          {inst.model_info && (
+            <div className="fc-model-row">
+              <span className="fc-info-label"><Zap size={11}/> 主模型</span>
+              <div className="fc-model-chain">
+                <span className="fc-model-primary"><Crown size={10}/> {inst.model_info.primaryLabel}</span>
+                {inst.model_info.chainLabels && inst.model_info.chainLabels.length > 1 && (
+                  <span className="fc-model-fallbacks">→ {inst.model_info.chainLabels.slice(1).join(' → ')}</span>
+                )}
               </div>
             </div>
-
-            <div className="fc-feishu-row">
-              <span className="fc-info-label">飞书</span>
-              <FeishuBadge inst={inst} />
-            </div>
-
-            {inst.model_info && (
-              <div className="fc-model-row">
-                <span className="fc-info-label"><Zap size={11}/> 主模型</span>
-                <div className="fc-model-chain">
-                  <span className="fc-model-primary">
-                    <Crown size={10}/> {inst.model_info.primaryLabel}
-                  </span>
-                  {inst.model_info.chainLabels && inst.model_info.chainLabels.length > 1 && (
-                    <span className="fc-model-fallbacks">
-                      → {inst.model_info.chainLabels.slice(1).join(' → ')}
-                    </span>
-                  )}
-                </div>
-              </div>
-            )}
-          </>
-        )}
-      </div>
+          )}
+        </div>
+      )}
     </div>
   )
 }
 
+// ── 主组件 ──────────────────────────────────────────────────────
 export default function FleetCluster() {
   const [instances, setInstances] = useState([])
   const [loading, setLoading] = useState(true)
-  const [statusFilter, setStatusFilter] = useState('all') // 'all' | 'online' | 'offline'
+  const [statusFilter, setStatusFilter] = useState('all')
   const [searchKw, setSearchKw] = useState('')
 
   const fetchInstances = useCallback(async () => {
@@ -230,27 +211,23 @@ export default function FleetCluster() {
     if (statusFilter === 'offline' && inst.status !== 'offline') return false
     if (searchKw.trim()) {
       const kw = searchKw.toLowerCase()
-      const match = (inst.name || '').toLowerCase().includes(kw) ||
-        (inst.id || '').toLowerCase().includes(kw) ||
-        (inst.direction || '').toLowerCase().includes(kw)
-      if (!match) return false
+      if (!(inst.name || '').toLowerCase().includes(kw) &&
+          !(inst.id || '').toLowerCase().includes(kw) &&
+          !(inst.direction || '').toLowerCase().includes(kw)) return false
     }
     return true
   })
 
   return (
     <div className="section fleet-cluster">
-      {/* Cluster Header */}
+
+      {/* ── Docker 实例集群 ── */}
       <div className="section-header fleet-header">
         <div className="fleet-header-left">
-          <span className="section-title">实例集群</span>
+          <span className="section-title">Docker 实例集群</span>
           <div className="fleet-pills">
-            <span className="fleet-pill online">
-              <span className="pill-dot" />{onlineCount} 在线
-            </span>
-            <span className="fleet-pill offline">
-              <span className="pill-dot" />{instances.length - onlineCount} 离线
-            </span>
+            <span className="fleet-pill online"><span className="pill-dot"/>{onlineCount} 在线</span>
+            <span className="fleet-pill offline"><span className="pill-dot"/>{instances.length - onlineCount} 离线</span>
           </div>
         </div>
         <button className="fc-btn" onClick={fetchInstances} disabled={loading}>
@@ -258,32 +235,24 @@ export default function FleetCluster() {
         </button>
       </div>
 
-      {/* Filter Bar */}
       <div className="fleet-filter-bar">
         <div className="fleet-filter-pills">
           {[
-            { key: 'all', label: `全部 (${instances.length})` },
-            { key: 'online', label: `在线 (${onlineCount})` },
+            { key: 'all',    label: `全部 (${instances.length})` },
+            { key: 'online',  label: `在线 (${onlineCount})` },
             { key: 'offline', label: `离线 (${instances.length - onlineCount})` },
           ].map(f => (
-            <button
-              key={f.key}
-              className={`fleet-filter-pill ${statusFilter === f.key ? 'active' : ''}`}
-              onClick={() => setStatusFilter(f.key)}
-            >{f.label}</button>
+            <button key={f.key} className={`fleet-filter-pill ${statusFilter === f.key ? 'active' : ''}`}
+              onClick={() => setStatusFilter(f.key)}>{f.label}</button>
           ))}
         </div>
         <div className="fleet-search-box">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-          <input
-            type="text"
-            placeholder="搜索名称、ID、方向..."
-            value={searchKw}
-            onChange={e => setSearchKw(e.target.value)}
-          />
-          {searchKw && (
-            <button className="fleet-search-clear" onClick={() => setSearchKw('')}>✕</button>
-          )}
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+          </svg>
+          <input type="text" placeholder="搜索名称、ID、方向..."
+            value={searchKw} onChange={e => setSearchKw(e.target.value)} />
+          {searchKw && <button className="fleet-search-clear" onClick={() => setSearchKw('')}>✕</button>}
         </div>
       </div>
 
@@ -291,11 +260,12 @@ export default function FleetCluster() {
         <Server size={12}/> Docker 运行，各实例记忆/技能独立；主控通过 fleet_list/status/send 工具统一调度。
       </div>
 
-      {/* All Instances — Same Grid */}
       {filtered.length > 0 ? (
         <div className="fleet-grid">
           {filtered.map(inst => (
-            <InstanceCard key={inst.id} inst={inst} onSave={(u) => setInstances(prev => prev.map(i => i.id === u.id ? { ...i, ...u } : i))} onRefresh={fetchInstances} />
+            <InstanceCard key={inst.id} inst={inst}
+              onSave={u => setInstances(prev => prev.map(i => i.id === u.id ? { ...i, ...u } : i))}
+              onRefresh={fetchInstances} />
           ))}
         </div>
       ) : (

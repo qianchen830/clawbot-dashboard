@@ -1,56 +1,34 @@
 // 服务配置 - 统一数据源
 // 所有服务定义在这里，NavSidebar/DataCenter/KnowledgeCenter 共用
 
+// 系统服务配置（全部 20 项）
 export const SERVICES_CONFIG = [
-  { 
-    name: 'OpenClaw Gateway', 
-    port: 18789, 
-    icon: '🌐', 
-    checkHost: 'localhost',  // 只监听了localhost，只能从localhost检查
-    description: '主控台'
-  },
-  { 
-    name: 'ClawBot Vite', 
-    port: 5174, 
-    icon: '⚛️', 
-    checkHost: 'localhost',
-    description: '管理界面'
-  },
-  { 
-    name: '金蝶前端', 
-    port: 5173, 
-    icon: '🎨', 
-    checkHost: 'localhost',
-    description: 'Vite+React'
-  },
-  { 
-    name: '金蝶后端', 
-    port: 8765, 
-    icon: '🖥️', 
-    checkHost: 'localhost',
-    description: 'Express API'
-  },
-  { 
-    name: '知识中心API', 
-    port: 3001, 
-    icon: '🔧', 
-    checkHost: 'localhost',
-    description: '状态查询API'
-  },
-  {
-    name: 'Hermes Bus',
-    port: 18766,
-    icon: '🤝',
-    checkHost: 'localhost',
-    description: 'Hermes消息总线'
-  },
-  {
-    name: 'Hermes Studio',
-    port: 8648,
-    icon: '🧭',
-    checkHost: 'localhost',
-    description: 'Hermes可视化界面'
-  },
+  // ── 系统基础服务 ──
+  { name: 'OpenClaw Gateway',  port: 18789, icon: '🌐', description: 'systemd openclaw-gateway.service' },
+  { name: 'ClawBot API',        port: 3001,  icon: '🔧', description: 'API Server' },
+  { name: 'ClawBot 前端',       port: 5174,  icon: '🖥️', description: 'Vite Preview' },
+  // ── 金蝶交付系统 ──
+  { name: '金蝶前端',            port: 5173,  icon: '🏢', description: 'systemd kingdee-web.service' },
+  { name: '金蝶后端API',         port: 8766,  icon: '⚙️', description: 'systemd kingdee-api.service' },
+  { name: '金蝶WS通知',          port: 8767,  icon: '📡', description: 'systemd kingdee-ws-notify.service' },
+  { name: '金蝶任务队列',        port: 8768,  icon: '📋', description: '金蝶任务处理' },
+  // ── Hermes 组件 ──
+  { name: 'Hermes Bus',         port: 18766, icon: '🤝', description: 'Hermes消息总线' },
+  { name: 'Hermes Studio',      port: 8648,  icon: '🎨', description: 'EKKO WebUI' },
+  { name: 'Hermes Bridge',      port: 3002,  icon: '🌉', description: 'OpenClaw-Hermes Bridge' },
+  // ── 代理/Embedding ──
+  { name: 'Volcano Embedding',  port: 3011,  icon: '🔌', description: 'Embedding API 代理' },
+  // ── 外部系统 ──
+  { name: '售前管理',            port: 3210,  icon: '📊', description: 'Express + SQLite（前后端共用3210）' },
+  { name: 'EKKO WebUI',         port: 5175,  icon: '🖼️', description: 'Hermes Studio' },
+  { name: 'CapCut Mate',        port: 30001, icon: '✂️', description: 'WSL Python 服务' },
+  // ── Docker 实例集群 ──
+  { name: '短视频助手',           port: 18809, icon: '🎬', description: 'Docker shortvideo' },
+  { name: '金蝶交付助手',         port: 18829, icon: '🏢', description: 'Docker kingdee' },
+  { name: '3D打印助手',          port: 18849, icon: '🖨️', description: 'Docker print3d' },
+  { name: 'AI游戏助手',           port: 18869, icon: '🎮', description: 'Docker ai-game' },
+  { name: '网页开发助手',         port: 18889, icon: '💻', description: 'Docker webdev' },
+  { name: '审查员实例',           port: 18909, icon: '🔍', description: 'Docker moderation' },
 ]
 
 // 检查单个服务状态（带重试，更稳定）

@@ -184,6 +184,9 @@ export default function GitManager() {
                         <span className="repo-item-branch">{repo.branch}</span>
                         <span>{repo.commit_count} 提交</span>
                       </div>
+                      {repo.description && (
+                        <div className="repo-item-desc">{repo.description}</div>
+                      )}
                     </div>
                   </div>
                 )
