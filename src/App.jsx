@@ -12,7 +12,6 @@ import DeliveryCockpit from './components/DeliveryCockpit'
 import StatusBar from './components/StatusBar'
 import FleetCluster from './components/FleetCluster'
 import TokenUsage from './components/TokenUsage'
-import PresaleKanban from './components/PresaleKanban'
 import Toast from './components/Toast'
 import { useState, useEffect } from 'react'
 import './App.css'
@@ -64,14 +63,6 @@ export default function App() {
         return <DeliveryCockpit />
       case 'projects':
         return <ProjectHub />
-      case 'presale':
-        return (
-          <iframe
-            src="http://localhost:3210/dashboard.html"
-            title="售前看板"
-            style={{ width: '100%', height: '100%', border: 'none', background: '#fff' }}
-          />
-        )
       case 'home':
       default:
         return (
