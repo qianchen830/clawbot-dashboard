@@ -651,7 +651,10 @@ app.use('/presale', (req, res) => {
 })
 
 // ── Fleet 实例集群 API ────────────────────────────────────────────────────
-const FLEET_INSTANCES_DIR = '/home/openclaw/docker-openclaw/instances'
+const FLEET_INSTANCES_DIRS = [
+  '/home/openclaw/docker-openclaw/instances',
+  '/home/openclaw/.openclaw/instances',
+]
 
 // 实时从飞书 API 获取应用名称
 async function fetchFeishuAppName(appId, appSecret) {
@@ -734,43 +737,47 @@ function loadFleetInstances() {
       model_info: extractModelInfo(mainCfg),
     }
   } catch {}
-  if (!fs.existsSync(FLEET_INSTANCES_DIR)) return masterEntry ? [masterEntry] : []
   const instances = [masterEntry].filter(Boolean)
-  for (const id of fs.readdirSync(FLEET_INSTANCES_DIR)) {
-    const metaPath = `${FLEET_INSTANCES_DIR}/${id}/instance.json`
-    if (!fs.existsSync(metaPath)) continue
-    try {
-      const meta = JSON.parse(fs.readFileSync(metaPath, 'utf8'))
-      let feishu_app_id = '', feishu_app_secret = '', feishu_connected = false, gateway_token = ''
-      let model_info = null
-      const instCfgPath = `${FLEET_INSTANCES_DIR}/${id}/.openclaw/openclaw.json`
-      let isLocked = false, lockedAt = null
-      if (fs.existsSync(instCfgPath)) {
-        try {
-          const instCfg = JSON.parse(fs.readFileSync(instCfgPath, 'utf8'))
-          feishu_app_id = instCfg.channels?.feishu?.appId || ''
-          feishu_app_secret = instCfg.channels?.feishu?.appSecret || ''
-          feishu_connected = instCfg.channels?.feishu?.enabled || false
-          gateway_token = instCfg.gateway?.auth?.token || instCfg.gateway?.remote?.token || ''
-          model_info = extractModelInfo(instCfg)
-          const fleet = instCfg.fleet || {}
-          isLocked = !!fleet.locked
-          lockedAt = fleet.lockedAt || null
-        } catch {}
-      }
-      instances.push({
-        id,
-        ...meta,
-        gateway_token,
-        model_info,
-        feishu_app_id,
-        feishu_app_name: null,  // 实时从飞书 API 获取
-        feishu_app_secret,
-        feishu_connected,
-        isLocked,
-        lockedAt,
-      })
-    } catch {}
+  for (const FLEET_INSTANCES_DIR of FLEET_INSTANCES_DIRS) {
+    if (!fs.existsSync(FLEET_INSTANCES_DIR)) continue
+    for (const id of fs.readdirSync(FLEET_INSTANCES_DIR)) {
+      // 跳过已存在的实例（避免多目录重复）
+      if (instances.find(i => i.id === id)) continue
+      const metaPath = `${FLEET_INSTANCES_DIR}/${id}/instance.json`
+      if (!fs.existsSync(metaPath)) continue
+      try {
+        const meta = JSON.parse(fs.readFileSync(metaPath, 'utf8'))
+        let feishu_app_id = '', feishu_app_secret = '', feishu_connected = false, gateway_token = ''
+        let model_info = null
+        const instCfgPath = `${FLEET_INSTANCES_DIR}/${id}/.openclaw/openclaw.json`
+        let isLocked = false, lockedAt = null
+        if (fs.existsSync(instCfgPath)) {
+          try {
+            const instCfg = JSON.parse(fs.readFileSync(instCfgPath, 'utf8'))
+            feishu_app_id = instCfg.channels?.feishu?.appId || ''
+            feishu_app_secret = instCfg.channels?.feishu?.appSecret || ''
+            feishu_connected = instCfg.channels?.feishu?.enabled || false
+            gateway_token = instCfg.gateway?.auth?.token || instCfg.gateway?.remote?.token || ''
+            model_info = extractModelInfo(instCfg)
+            const fleet = instCfg.fleet || {}
+            isLocked = !!fleet.locked
+            lockedAt = fleet.lockedAt || null
+          } catch {}
+        }
+        instances.push({
+          id,
+          ...meta,
+          gateway_token,
+          model_info,
+          feishu_app_id,
+          feishu_app_name: null,  // 实时从飞书 API 获取
+          feishu_app_secret,
+          feishu_connected,
+          isLocked,
+          lockedAt,
+        })
+      } catch {}
+    }
   }
   return instances
 }
@@ -1361,32 +1368,27 @@ app.get('/api/cc-stats', async (req, res) => {
 //  模型配额 & 账期配置
 // ═══════════════════════════════════════════════════════════
 const MODEL_QUOTA_CONFIG = {
+  zhipu: {
+    label: '智谱 GLM-5.2',
+    // trajectory provider key
+    provider_key: 'zhipu',
+    // 匹配 trajectory 中的 modelId
+    modelNames: ['glm-5.2'],
+    model_name: 'glm-5.2',
+    monthlyQuotaCalls: 100000,
+    billingDay: 16,
+    color: '#4285f4',
+    icon: '🔵',
+  },
   minimax: {
     label: 'MiniMax M2.7',
-    cc_provider_ids: ['minimax-official'],
+    provider_key: 'minimax',
+    modelNames: ['MiniMax-M2.7'],
     model_name: 'MiniMax-M2.7',
     monthlyQuotaCalls: 100000,
     billingDay: 16,
     color: '#00e5ff',
     icon: '🟢',
-  },
-  'volcano-plan': {
-    label: '火山方舟 Agent Plan',
-    cc_provider_ids: ['volcano-plan'],
-    model_name: 'ark-code-latest',
-    monthlyQuotaCalls: 100000,
-    billingDay: 20,
-    color: '#7c4dff',
-    icon: '🟣',
-  },
-  volcano: {
-    label: '火山方舟 Code Plan',
-    cc_provider_ids: ['volcano', 'volcano-ark'],
-    model_name: 'ark-code-latest',
-    monthlyQuotaCalls: 50000,
-    billingDay: 20,
-    color: '#ff9100',
-    icon: '🟠',
   },
 }
 
