@@ -65,7 +65,13 @@ export default function App() {
       case 'projects':
         return <ProjectHub />
       case 'presale':
-        return <PresaleKanban />
+        return (
+          <iframe
+            src="/presale-board.html"
+            title="售前看板"
+            style={{ width: '100%', height: '100%', border: 'none', background: '#fff' }}
+          />
+        )
       case 'home':
       default:
         return (
