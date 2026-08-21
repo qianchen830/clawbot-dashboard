@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Home, BookOpen, BarChart2, RefreshCw, Wrench, Rocket, Server, GitBranch, Zap, Folder } from 'lucide-react'
+import { Home, BookOpen, BarChart2, RefreshCw, Wrench, Rocket, Server, GitBranch, Zap, Folder, LayoutDashboard } from 'lucide-react'
 import './NavSidebar.css'
 
 const API_BASE = ''
@@ -11,6 +11,7 @@ const NAV_ITEMS = [
   { id: 'knowledge', label: '知识中心', icon: BookOpen, view: 'knowledge' },
   { id: 'projects', label: '项目中心', icon: Folder, view: 'projects' },
   { id: 'git', label: 'Git管理', icon: GitBranch, view: 'git' },
+  { id: 'presale', label: '售前看板', icon: LayoutDashboard, view: 'presale' },
   { id: 'data', label: '数据中心', icon: BarChart2, view: 'data' },
 ]
 const DEFAULT_STATS = [

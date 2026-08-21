@@ -12,6 +12,7 @@ import DeliveryCockpit from './components/DeliveryCockpit'
 import StatusBar from './components/StatusBar'
 import FleetCluster from './components/FleetCluster'
 import TokenUsage from './components/TokenUsage'
+import PresaleKanban from './components/PresaleKanban'
 import Toast from './components/Toast'
 import { useState, useEffect } from 'react'
 import './App.css'
@@ -63,6 +64,8 @@ export default function App() {
         return <DeliveryCockpit />
       case 'projects':
         return <ProjectHub />
+      case 'presale':
+        return <PresaleKanban />
       case 'home':
       default:
         return (

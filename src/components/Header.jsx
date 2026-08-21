@@ -1,7 +1,11 @@
 import './Header.css'
-import { Bot, Settings } from 'lucide-react'
+import { Bot, Settings, LayoutDashboard } from 'lucide-react'
 
 export default function Header() {
+  const openPresaleKanban = () => {
+    window.dispatchEvent(new CustomEvent('nav', { detail: { view: 'presale' } }))
+  }
+
   return (
     <header className="header">
       <div className="header-left">
@@ -13,6 +17,10 @@ export default function Header() {
           <span className="status-dot"></span>
           <span>在线</span>
         </div>
+        <button className="header-btn" onClick={openPresaleKanban} title="售前看板">
+          <LayoutDashboard size={14} />
+          售前看板
+        </button>
         <button className="header-btn" onClick={() => window.open('http://localhost:18789/', '_blank')}>
           <Settings size={14} />
           控制台
