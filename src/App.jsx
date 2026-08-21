@@ -67,7 +67,7 @@ export default function App() {
       case 'presale':
         return (
           <iframe
-            src="/presale-board.html"
+            src="http://localhost:3210/dashboard.html"
             title="售前看板"
             style={{ width: '100%', height: '100%', border: 'none', background: '#fff' }}
           />
