@@ -47,8 +47,8 @@ export default function GitManager() {
     setPage(1)
     try {
       const [logResp, statusResp] = await Promise.all([
-        fetch(`${API_BASE}/api/git/log?path=${encodeURIComponent(repoPath)}`),
-        fetch(`${API_BASE}/api/git/status?path=${encodeURIComponent(repoPath)}`),
+        fetch(`${API_BASE}/api/git/log`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ path: repoPath }) }),
+        fetch(`${API_BASE}/api/git/status`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ path: repoPath }) }),
       ])
       const [logData, statusData] = await Promise.all([logResp.json(), statusResp.json()])
       setCommits(logData.commits || [])

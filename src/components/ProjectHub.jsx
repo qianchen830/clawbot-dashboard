@@ -8,6 +8,13 @@ import './ProjectHub.css'
 
 // ── 项目注册表 ──────────────────────────────────────────────────
 // autoStart: 是否开机自启；startCmd/stopCmd: 通过 /api/exec 执行
+// 生产发布字段:
+//   deployed: 是否已发布生产环境
+//   productionEnv: 生产环境标识（tencent-cloud | self-hosted | cloud）
+//   productionUrl: 生产环境公网访问地址
+//   productionBranch: 部署到生产的分支
+//   productionGitRemote: git remote 名称（推送生产用）
+//   lastDeployTime: 最近发布时间（Unix ms），由前端每次成功部署后更新
 const PROJECTS = [
   {
     id: 'clawbot',
@@ -64,6 +71,13 @@ const PROJECTS = [
     autoStart: false,
     startCmd: 'cd /home/openclaw/.openclaw/workspace/webdev-projects/presale && nohup node server.js > /tmp/presale.log 2>&1 &',
     stopPorts: [3210],
+    // ── 生产发布信息 ──
+    deployed: true,
+    productionEnv: 'tencent-cloud',
+    productionUrl: 'http://1.14.45.222:3210',
+    productionBranch: 'main',
+    productionGitRemote: 'production',
+    lastDeployTime: 1787380500000, // 2026-08-22 14:35:00 CST
   },
 ]
 
@@ -357,6 +371,51 @@ export default function ProjectHub() {
     navigator.clipboard.writeText(url).then(() => toast('已复制 URL')).catch(() => toast('复制失败'))
   }, [])
 
+  // ── 部署记录 ─────────────────────────────────────────────────
+  const [deployRecords, setDeployRecords] = useState({})
+  const [deploying, setDeploying] = useState(false)
+
+  const loadDeployRecords = useCallback(async (projectId) => {
+    try {
+      const res = await fetch(`/api/deployments?projectId=${projectId}`)
+      const data = await res.json()
+      if (data.records) setDeployRecords(prev => ({ ...prev, [projectId]: data.records }))
+    } catch {}
+  }, [])
+
+  useEffect(() => {
+    PROJECTS.forEach(p => { if (p.deployed) loadDeployRecords(p.id) })
+  }, [loadDeployRecords])
+
+  const getLatestDeployTime = useCallback((projectId) => {
+    const recs = deployRecords[projectId] || []
+    if (!recs.length) return null
+    return recs.reduce((latest, r) => (r.deployedAt > (latest || 0) ? r.deployedAt : latest), null)
+  }, [deployRecords])
+
+  const handleDeploy = useCallback(async (proj) => {
+    if (!proj.deployed || !proj.productionGitRemote) { toast('未配置生产发布'); return }
+    setDeploying(true)
+    toast(`🚀 正在发布 ${proj.name} 到生产环境...`)
+    try {
+      const res = await fetch('/api/exec', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ cmd: `cd ${proj.gitPath} && git push ${proj.productionGitRemote} ${proj.productionBranch || 'main'} 2>&1` })
+      })
+      const data = await res.json()
+      if (data.error || (data.code !== 0)) {
+        toast('❌ 发布失败: ' + (data.stderr || data.stdout?.split('\n').pop() || '未知错误')); setDeploying(false); return
+      }
+      await fetch('/api/deployments/record', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ projectId: proj.id, branch: proj.productionBranch || 'main', gitRemote: proj.productionGitRemote, productionUrl: proj.productionUrl, deployedBy: 'ClawBot', note: '' })
+      })
+      loadDeployRecords(proj.id)
+      toast(`✅ ${proj.name} 已发布到生产环境！`)
+    } catch (e) { toast('❌ 发布失败: ' + e.message) }
+    finally { setDeploying(false) }
+  }, [loadDeployRecords])
+
   const hasOffline = PROJECTS.some(p => svcStatus[p.id] === 'offline' && p.startCmd)
   const allOnline = PROJECTS.every(p => svcStatus[p.id] === 'online' || !p.startCmd)
 
@@ -437,6 +496,26 @@ export default function ProjectHub() {
                 <div className="ph-info-title">
                   <Folder size={14} color="#00e5ff" />
                   {proj.name}
+                  {proj.deployed && (() => {
+                    const latestTs = getLatestDeployTime(proj.id) || proj.lastDeployTime
+                    if (!latestTs) return null
+                    const dt = new Date(latestTs)
+                    const now = Date.now()
+                    const diffMs = now - latestTs
+                    const diffMin = Math.floor(diffMs / 60000)
+                    const diffHr = Math.floor(diffMs / 3600000)
+                    const diffDay = Math.floor(diffMs / 86400000)
+                    let timeLabel = ''
+                    if (diffMin < 1) timeLabel = '刚刚'
+                    else if (diffMin < 60) timeLabel = `${diffMin}分钟前`
+                    else if (diffHr < 24) timeLabel = `${diffHr}小时前`
+                    else timeLabel = `${diffDay}天前`
+                    return (
+                      <span style={{ fontSize: 10, color: '#ff9100', marginLeft: 8, fontWeight: 400 }}>
+                        📦 {timeLabel}
+                      </span>
+                    )
+                  })()}
                 </div>
                 <div className="ph-info-actions">
                   {/* 服务状态 + 启动控制 */}
@@ -514,6 +593,51 @@ export default function ProjectHub() {
                     <span className="ph-info-label">Git 分支</span>
                     <span className="ph-info-value"><GitBranch size={11} style={{ marginRight: 4 }} />{proj.branch}</span>
                   </div>
+
+                  {/* ── 生产发布信息 ── */}
+                  {proj.deployed && (
+                    <>
+                      <div className="ph-info-row" style={{ gridColumn: '1 / -1', marginTop: 4 }}>
+                        <span className="ph-info-label">生产环境</span>
+                        <span style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                          <span style={{ fontSize: 10, padding: '1px 7px', borderRadius: 10, background: proj.productionEnv === 'tencent-cloud' ? 'rgba(255,23,68,0.15)' : 'rgba(0,188,212,0.1)', color: proj.productionEnv === 'tencent-cloud' ? '#ff1744' : '#00bcd4', border: `1px solid ${proj.productionEnv === 'tencent-cloud' ? 'rgba(255,23,68,0.3)' : 'rgba(0,188,212,0.2)'}`, fontWeight: 600 }}>
+                            {proj.productionEnv === 'tencent-cloud' ? '🔴 腾讯云' : proj.productionEnv === 'self-hosted' ? '🖥️ 自托管' : '☁️ 云服务'}
+                          </span>
+                          {proj.productionUrl && (
+                            <a href={proj.productionUrl} target="_blank" rel="noreferrer" style={{ fontSize: 11, color: '#00e5ff', textDecoration: 'none', display: 'flex', alignItems: 'center', gap: 3 }}>
+                              <Globe size={11} />{proj.productionUrl}
+                            </a>
+                          )}
+                          {(() => {
+                            const latestTs = getLatestDeployTime(proj.id) || proj.lastDeployTime
+                            if (!latestTs) return null
+                            const dt = new Date(latestTs)
+                            const now = Date.now()
+                            const diffMs = now - latestTs
+                            const diffMin = Math.floor(diffMs / 60000)
+                            const diffHr = Math.floor(diffMs / 3600000)
+                            let timeLabel = ''
+                            if (diffMin < 1) timeLabel = '刚刚'
+                            else if (diffMin < 60) timeLabel = `${diffMin}分钟前`
+                            else if (diffHr < 24) timeLabel = `${diffHr}小时前`
+                            else timeLabel = dt.toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })
+                            return (
+                              <span style={{ fontSize: 10, color: '#ff9100' }}>
+                                📦 {timeLabel}
+                              </span>
+                            )
+                          })()}
+                        </span>
+                      </div>
+                      {proj.productionBranch && (
+                        <div className="ph-info-row">
+                          <span className="ph-info-label">生产分支</span>
+                          <span className="ph-info-value"><GitBranch size={11} style={{ marginRight: 4 }} />{proj.productionBranch}</span>
+                        </div>
+                      )}
+                    </>
+                  )}
+
                   <div className="ph-info-row">
                     <span className="ph-info-label">Tunnel 端口</span>
                     <span className="ph-info-value">

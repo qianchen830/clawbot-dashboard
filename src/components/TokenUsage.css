@@ -134,13 +134,7 @@
 }
 
 /* Balancer Card */
-.tu-balancer-card {
-  background: linear-gradient(135deg, rgba(124,77,255,0.08), rgba(0,229,255,0.05));
-  border: 1px solid rgba(124,77,255,0.2);
-  border-radius: 14px;
-  padding: 20px 24px;
-  margin-bottom: 8px;
-}
+
 .tu-balancer-header {
   display: flex;
   align-items: center;
@@ -337,14 +331,7 @@
 }
 
 /* Billing Row */
-.tu-billing-row {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 12px;
-  color: rgba(255,255,255,0.4);
-  margin-bottom: 14px;
-}
+
 .tu-days-left {
   margin-left: auto;
   color: #ff9100;
@@ -352,56 +339,22 @@
 }
 
 /* Quota Section */
-.tu-quota-section {
-  margin-bottom: 16px;
-}
-.tu-quota-label-row {
-  display: flex;
-  justify-content: space-between;
-  align-items: baseline;
-  font-size: 12px;
-  color: rgba(255,255,255,0.5);
-  margin-bottom: 7px;
-}
-.tu-quota-numbers {
-  font-size: 13px;
-}
-.tu-quota-numbers strong {
-  color: #fff;
-  font-size: 16px;
-  font-weight: 700;
-}
-.tu-quota-sep {
-  color: rgba(255,255,255,0.25);
-  margin: 0 3px;
-}
-.tu-quota-total { color: rgba(255,255,255,0.35); }
 
-.tu-quota-bar {
-  width: 100%;
-  height: 8px;
-  background: rgba(255,255,255,0.06);
-  border-radius: 4px;
-  overflow: hidden;
-}
-.tu-quota-fill {
-  height: 100%;
-  border-radius: 4px;
-  transition: width .5s ease;
-}
-.tu-quota-bar.healthy .tu-quota-fill { opacity: 1; }
-.tu-quota-bar.warning .tu-quota-fill { box-shadow: 0 0 8px rgba(255,145,0,0.5); }
-.tu-quota-bar.critical .tu-quota-fill { box-shadow: 0 0 8px rgba(255,64,129,0.5); }
 
-.tu-quota-footer {
-  display: flex;
-  justify-content: space-between;
-  margin-top: 6px;
-  font-size: 11px;
-  color: rgba(255,255,255,0.3);
-}
-.tu-remain-low { color: #ff4081; font-weight: 600; }
-.tu-quota-pct { color: rgba(255,255,255,0.5); font-weight: 600; }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 /* Token Grid */
 .tu-token-grid {
@@ -438,6 +391,11 @@
   padding: 20px 24px;
   margin-bottom: 20px;
 }
+.tu-trend-card--wide {
+  background: linear-gradient(135deg, rgba(0,229,255,0.04) 0%, rgba(124,77,255,0.04) 100%);
+  border: 1px solid rgba(0,229,255,0.12);
+  box-shadow: 0 4px 24px rgba(0,0,0,0.2);
+}
 .tu-trend-header {
   display: flex; align-items: center; gap: 8px;
   margin-bottom: 18px;
@@ -449,9 +407,10 @@
 .tu-trend-chart {
   display: flex;
   align-items: flex-end;
-  gap: 4px;
-  height: 140px;
-  padding-top: 10px;
+  gap: 3px;
+  height: 160px;
+  padding-top: 14px;
+  border-bottom: 1px solid rgba(255,255,255,0.06);
 }
 .tu-trend-col {
   flex: 1;
@@ -460,6 +419,10 @@
   align-items: center;
   height: 100%;
   min-width: 0;
+  position: relative;
+}
+.tu-trend-col--wide {
+  min-width: 40px;
 }
 .tu-trend-bar-wrap {
   flex: 1;
@@ -467,14 +430,28 @@
   display: flex;
   align-items: flex-end;
   justify-content: center;
+  position: relative;
 }
 .tu-trend-bar {
   width: 70%;
   max-width: 32px;
-  background: linear-gradient(180deg, #00e5ff, #7c4dff);
-  border-radius: 3px 3px 0 0;
+  background: linear-gradient(180deg, #00e5ff 0%, #7c4dff 100%);
+  border-radius: 4px 4px 0 0;
   min-height: 4px;
-  transition: height .3s;
+  transition: height .25s ease;
+  position: relative;
+}
+.tu-trend-bar::after {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 3px;
+  background: rgba(255,255,255,0.4);
+  border-radius: 4px 4px 0 0;
+}
+.tu-trend-bar:hover {
+  opacity: 0.85;
+  filter: brightness(1.15);
 }
 .tu-trend-bar:hover { opacity: 0.8; }
 .tu-trend-date {
@@ -483,17 +460,34 @@
   margin-top: 6px;
   white-space: nowrap;
 }
+.tu-trend-bar-label {
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 9px;
+  font-weight: 600;
+  color: rgba(255,255,255,0.7);
+  white-space: nowrap;
+  pointer-events: none;
+  z-index: 1;
+  text-shadow: 0 1px 4px rgba(0,0,0,0.8);
+}
+.tu-trend-calls {
+  font-size: 8px;
+  color: rgba(255,255,255,0.35);
+  margin-top: 1px;
+}
 .tu-trend-val {
   font-size: 9.5px;
   color: rgba(255,255,255,0.2);
 }
 .tu-trend-legend {
   display: flex;
-  gap: 16px;
+  gap: 20px;
   justify-content: center;
   margin-top: 10px;
   font-size: 11px;
-  color: rgba(255,255,255,0.3);
+  color: rgba(255,255,255,0.35);
 }
 .tu-legend-dot {
   display: inline-block;
@@ -541,4 +535,22 @@
   .tu-flow-chain { flex-direction: column; align-items: stretch; }
   .tu-flow-node-wrap { flex-direction: column; }
   .tu-flow-arrow { transform: rotate(90deg); padding: 6px 0; }
+}
+
+/* 2026-08-21 精简后：去掉配额/账期/均衡器，只保留调用次数+Token统计 */
+
+/* 调用次数区块 */
+.tu-call-section {
+  margin-bottom: 14px;
+}
+.tu-call-label-row {
+  font-size: 11px;
+  color: rgba(255,255,255,0.4);
+  margin-bottom: 4px;
+}
+.tu-call-number {
+  font-size: 28px;
+  font-weight: 700;
+  color: #fff;
+  letter-spacing: -0.5px;
 }

@@ -90,7 +90,8 @@ function InstanceCard({ inst, onSave, onRefresh }) {
   const isMaster = inst.is_master
   const isWslHost = inst.container === null
   const isModeration = inst.id === 'moderation'
-  const borderColor = isModeration ? '#ff6f00' : isMaster ? '#7c4dff' : isWslHost && isOnline ? '#00bcd4' : isOnline ? '#00e676' : inst.status === 'offline' ? '#ff4081' : '#ff9100'
+  const isProduction = inst.runtime === 'ssh'
+  const borderColor = isModeration ? '#ff6f00' : isMaster ? '#7c4dff' : isProduction ? '#ff1744' : isWslHost && isOnline ? '#00bcd4' : isOnline ? '#00e676' : inst.status === 'offline' ? '#ff4081' : '#ff9100'
 
   return (
     <div className="fleet-card" style={{ '--border-color': borderColor }}>
@@ -100,6 +101,7 @@ function InstanceCard({ inst, onSave, onRefresh }) {
             {isMaster && <Crown size={13} className="fc-master-icon" />}
             <span className="fc-name">{inst.name || inst.id}</span>
             {isMaster && <span className="fc-master-tag">主控</span>}
+            {isProduction && <span style={{fontSize:'10px',padding:'1px 6px',borderRadius:'10px',background:'rgba(255,23,68,0.12)',color:'#ff1744',border:'1px solid rgba(255,23,68,0.3)',marginLeft:'4px'}}>🔴 生产</span>}
             {isLocked && <span style={{fontSize:'10px',padding:'1px 6px',borderRadius:'10px',background:'#2a1a0a',color:'#ff9100',border:'1px solid #ff9100',marginLeft:'4px'}}>🔒</span>}
           </div>
           <StatusBadge status={inst.status} />
@@ -151,18 +153,37 @@ function InstanceCard({ inst, onSave, onRefresh }) {
       {!editing && (
         <div className="fc-body">
           <div className="fc-info-grid">
-            <div className="fc-info-item">
-              <span className="fc-info-label"><Activity size={11}/> 端口</span>
-              <span className="fc-info-value">{inst.port}</span>
-            </div>
-            <div className="fc-info-item">
-              <span className="fc-info-label"><Cpu size={11}/> 方向</span>
-              <span className="fc-info-value">{inst.direction || '—'}</span>
-            </div>
-            <div className="fc-info-item">
-              <span className="fc-info-label"><Server size={11}/> 实例ID</span>
-              <span className="fc-info-value fc-id">{inst.id}</span>
-            </div>
+            {isProduction ? (
+              <>
+                <div className="fc-info-item">
+                  <span className="fc-info-label"><Server size={11}/> 公网IP</span>
+                  <span className="fc-info-value">{inst.host || '—'}</span>
+                </div>
+                <div className="fc-info-item">
+                  <span className="fc-info-label"><Activity size={11}/> 类型</span>
+                  <span className="fc-info-value">SSH 云服务器</span>
+                </div>
+                <div className="fc-info-item">
+                  <span className="fc-info-label"><Server size={11}/> 实例ID</span>
+                  <span className="fc-info-value fc-id">{inst.instance_id || inst.id}</span>
+                </div>
+              </>
+            ) : (
+              <>
+                <div className="fc-info-item">
+                  <span className="fc-info-label"><Activity size={11}/> 端口</span>
+                  <span className="fc-info-value">{inst.port}</span>
+                </div>
+                <div className="fc-info-item">
+                  <span className="fc-info-label"><Cpu size={11}/> 方向</span>
+                  <span className="fc-info-value">{inst.direction || '—'}</span>
+                </div>
+                <div className="fc-info-item">
+                  <span className="fc-info-label"><Server size={11}/> 实例ID</span>
+                  <span className="fc-info-value fc-id">{inst.id}</span>
+                </div>
+              </>
+            )}
           </div>
           <div className="fc-feishu-row">
             <span className="fc-info-label">飞书</span>
@@ -218,16 +239,41 @@ export default function FleetCluster() {
     return true
   })
 
-  return (
-    <div className="section fleet-cluster">
+  // ── 实例分组 ───────────────────────────────────────────────
+  const externalInsts = instances.filter(i =>
+    i.is_master || i.runtime === 'native-wsl' || i.runtime === 'ssh' || i.runtime === 'wsl'
+  )
+  const dockerInsts = instances.filter(i =>
+    !i.is_master && i.container != null && i.runtime !== 'native-wsl' && i.runtime !== 'ssh' && i.runtime !== 'wsl'
+  )
 
-      {/* ── Docker 实例集群 ── */}
+  const extOnline = externalInsts.filter(i => i.status === 'online').length
+  const dockerOnline = dockerInsts.filter(i => i.status === 'online').length
+
+  // ── 过滤函数（单组） ────────────────────────────────────────
+  const filterInsts = (list) => list.filter(inst => {
+    if (statusFilter === 'online' && inst.status !== 'online') return false
+    if (statusFilter === 'offline' && inst.status !== 'offline') return false
+    if (searchKw.trim()) {
+      const kw = searchKw.toLowerCase()
+      if (!(inst.name || '').toLowerCase().includes(kw) &&
+          !(inst.id || '').toLowerCase().includes(kw) &&
+          !(inst.direction || '').toLowerCase().includes(kw)) return false
+    }
+    return true
+  })
+
+  const extFiltered = filterInsts(externalInsts)
+  const dockerFiltered = filterInsts(dockerInsts)
+
+  const renderSection = (title, icon, insts, filtered, onlineCount, allCount, tag) => (
+    <div style={{ marginBottom: 28 }}>
       <div className="section-header fleet-header">
         <div className="fleet-header-left">
-          <span className="section-title">Docker 实例集群</span>
+          <span className="section-title">{icon} {title}</span>
           <div className="fleet-pills">
             <span className="fleet-pill online"><span className="pill-dot"/>{onlineCount} 在线</span>
-            <span className="fleet-pill offline"><span className="pill-dot"/>{instances.length - onlineCount} 离线</span>
+            <span className="fleet-pill offline"><span className="pill-dot"/>{allCount - onlineCount} 离线</span>
           </div>
         </div>
         <button className="fc-btn" onClick={fetchInstances} disabled={loading}>
@@ -235,6 +281,26 @@ export default function FleetCluster() {
         </button>
       </div>
 
+      {filtered.length > 0 ? (
+        <div className="fleet-grid">
+          {filtered.map(inst => (
+            <InstanceCard key={inst.id} inst={inst}
+              onSave={u => setInstances(prev => prev.map(i => i.id === u.id ? { ...i, ...u } : i))}
+              onRefresh={fetchInstances} />
+          ))}
+        </div>
+      ) : (
+        <div className="fleet-empty">
+          {searchKw || statusFilter !== 'all' ? '没有匹配的实例' : '暂无实例'}
+        </div>
+      )}
+    </div>
+  )
+
+  return (
+    <div className="section fleet-cluster">
+
+      {/* ── 共享筛选栏（两区共用） ── */}
       <div className="fleet-filter-bar">
         <div className="fleet-filter-pills">
           {[
@@ -256,23 +322,14 @@ export default function FleetCluster() {
         </div>
       </div>
 
-      <div className="fleet-tip">
+      {/* ── 外部实例（主控台、审查员、训练员、SSH 云服务器） ── */}
+      {renderSection('外部实例', '🖥️', externalInsts, extFiltered, extOnline, externalInsts.length, 'external')}
+
+      {/* ── Docker 实例集群 ── */}
+      <div className="fleet-tip" style={{ marginBottom: 12 }}>
         <Server size={12}/> Docker 运行，各实例记忆/技能独立；主控通过 fleet_list/status/send 工具统一调度。
       </div>
-
-      {filtered.length > 0 ? (
-        <div className="fleet-grid">
-          {filtered.map(inst => (
-            <InstanceCard key={inst.id} inst={inst}
-              onSave={u => setInstances(prev => prev.map(i => i.id === u.id ? { ...i, ...u } : i))}
-              onRefresh={fetchInstances} />
-          ))}
-        </div>
-      ) : (
-        <div className="fleet-empty">
-          {searchKw || statusFilter !== 'all' ? '没有匹配的实例' : '暂无实例'}
-        </div>
-      )}
+      {renderSection('Docker 实例集群', '🐳', dockerInsts, dockerFiltered, dockerOnline, dockerInsts.length, 'docker')}
       {loading && <div className="fleet-loading">加载中...</div>}
     </div>
   )

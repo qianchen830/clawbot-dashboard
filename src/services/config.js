@@ -20,7 +20,6 @@ export const SERVICES_CONFIG = [
   { name: 'Volcano Embedding',  port: 3011,  icon: '🔌', description: 'Embedding API 代理' },
   // ── 外部系统 ──
   { name: '售前管理',            port: 3210,  icon: '📊', description: 'Express + SQLite（前后端共用3210）' },
-  { name: 'EKKO WebUI',         port: 5175,  icon: '🖼️', description: 'Hermes Studio' },
   { name: 'CapCut Mate',        port: 30001, icon: '✂️', description: 'WSL Python 服务' },
   // ── Docker 实例集群 ──
   { name: '短视频助手',           port: 18809, icon: '🎬', description: 'Docker shortvideo' },

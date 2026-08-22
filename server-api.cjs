@@ -240,6 +240,11 @@ app.get('/api/service-status', async (req, res) => {
       // === 核心基础设施（项目级服务在“项目中心”查看） ===
       { name: 'OpenClaw Gateway', port: 18789, checkHost: 'localhost' },
       { name: '知识中心API', port: 3001, checkHost: 'localhost' },
+      { name: 'ClawBot 前端', port: 5174, checkHost: 'localhost' },
+      { name: '金蝶前端', port: 5173, checkHost: 'localhost' },
+      { name: '金蝶后端API', port: 8766, checkHost: 'localhost' },
+      { name: '金蝶WS通知', port: 8767, checkHost: 'localhost' },
+      { name: '售前管理', port: 3210, checkHost: 'localhost' },
       { name: '金蝶任务队列', port: 8768, checkHost: 'localhost' },
       // === OpenClaw 实例集群 ===
       { name: 'Docker-shortvideo', port: 18809, checkHost: 'localhost' },
@@ -247,6 +252,7 @@ app.get('/api/service-status', async (req, res) => {
       { name: 'Docker-print3d', port: 18849, checkHost: 'localhost' },
       { name: 'Docker-ai-game', port: 18869, checkHost: 'localhost' },
       { name: 'Docker-webdev', port: 18889, checkHost: 'localhost' },
+      { name: '审查员实例', port: 18909, checkHost: 'localhost' },
       // === 工具/中间件服务 ===
       { name: 'Hermes Bridge', port: 3002, checkHost: 'localhost' },
       { name: 'Volcano Embedding', port: 3011, checkHost: 'localhost' },
@@ -1148,6 +1154,24 @@ function getBillingPeriod(ts) {
   }
 }
 
+// 按各模型自定义账期起始日计算账期
+function getProviderBillingPeriod(cycleStartDay, ts) {
+  const d = ts instanceof Date ? ts : new Date(ts)
+  const day = d.getDate()
+  let start, end
+  if (day >= cycleStartDay) {
+    start = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), cycleStartDay))
+    end   = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + 1, cycleStartDay - 1))
+  } else {
+    start = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() - 1, cycleStartDay))
+    end   = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), cycleStartDay - 1))
+  }
+  return {
+    start: start.toISOString().slice(0, 10),
+    end:   end.toISOString().slice(0, 10),
+  }
+}
+
 function inBillingPeriod(ts, periodStart, periodEnd) {
   const d = ts instanceof Date ? ts : new Date(ts)
   const s = new Date(periodStart)
@@ -1367,130 +1391,250 @@ app.get('/api/cc-stats', async (req, res) => {
 // ═══════════════════════════════════════════════════════════
 //  模型配额 & 账期配置
 // ═══════════════════════════════════════════════════════════
-const MODEL_QUOTA_CONFIG = {
+const MODEL_STATS_CONFIG = {
   zhipu: {
     label: '智谱 GLM-5.2',
-    // trajectory provider key
+    source: 'session-logs',
     provider_key: 'zhipu',
-    // 匹配 trajectory 中的 modelId
     modelNames: ['glm-5.2'],
-    model_name: 'glm-5.2',
-    monthlyQuotaCalls: 100000,
-    billingDay: 16,
     color: '#4285f4',
     icon: '🔵',
+    cycleStartDay: 21,   // 开通日：2026-08-21，账期：每月21日→次月20日
   },
   minimax: {
     label: 'MiniMax M2.7',
-    provider_key: 'minimax',
+    source: 'cc-switch',
+    cc_provider_ids: ['minimax-official'],
     modelNames: ['MiniMax-M2.7'],
-    model_name: 'MiniMax-M2.7',
-    monthlyQuotaCalls: 100000,
-    billingDay: 16,
     color: '#00e5ff',
     icon: '🟢',
+    cycleStartDay: 16,   // 开通日：2026-08-16，账期：每月16日→次月15日
+  },
+  volcano: {
+    label: '火山方舟 Code Plan',
+    source: 'cc-switch',
+    cc_provider_ids: ['volcano', 'volcano-ark'],
+    modelNames: ['ark-code-latest'],
+    color: '#ff9100',
+    icon: '🟠',
+    cycleStartDay: 16,   // 账期：每月16日→次月15日（与 MiniMax 相同）
   },
 }
 
-function getProviderBillingPeriod(now, billingDay) {
-  const d = new Date(now)
-  const day = d.getDate()
-  let start, end
-  if (day >= billingDay) {
-    start = new Date(d.getFullYear(), d.getMonth(), billingDay)
-    end = new Date(d.getFullYear(), d.getMonth() + 1, billingDay - 1, 23, 59, 59)
-  } else {
-    start = new Date(d.getFullYear(), d.getMonth() - 1, billingDay)
-    end = new Date(d.getFullYear(), d.getMonth(), billingDay - 1, 23, 59, 59)
-  }
-  return {
-    start: start.toISOString().slice(0, 10),
-    end: end.toISOString().slice(0, 10),
-    startTs: Math.floor(start.getTime() / 1000),
-    endTs: Math.floor(end.getTime() / 1000),
-    daysRemaining: Math.ceil((end - d) / 86400000),
-  }
+
+// ═══════════════════════════════════════════════════════════
+//  用量统计：直接读 OpenClaw 会话日志（.jsonl）
+//  数据源：~/.openclaw/agents/main/sessions/*.jsonl
+//  口径：type=message && role=assistant（跳过 gateway-injected 等注入消息）
+//  token：API 返回 usage 时累计，否则仅计调用次数
+// ═══════════════════════════════════════════════════════════
+const SESSIONS_DIR = path.join(process.env.HOME || '/home/openclaw', '.openclaw', 'agents', 'main', 'sessions')
+const SKIP_MODELS = new Set(['gateway-injected', 'delivery-mirror', ''])
+
+// 每文件聚合缓存：file → { mtimeMs, agg: {day → model → {calls, input, output}} }
+const fileUsageCache = new Map()
+
+function parseFileAgg(fpath) {
+  const agg = {}
+  try {
+    const content = fs.readFileSync(fpath, 'utf8')
+    for (const line of content.split('\n')) {
+      if (!line) continue
+      let d
+      try { d = JSON.parse(line) } catch { continue }
+      if (d.type !== 'message') continue
+      const msg = d.message || {}
+      if (msg.role !== 'assistant') continue
+      const model = msg.model
+      if (!model || SKIP_MODELS.has(model)) continue
+      const ts = d.timestamp
+      if (!ts) continue
+      const day = String(ts).slice(0, 10)
+      if (!agg[day]) agg[day] = {}
+      if (!agg[day][model]) agg[day][model] = { calls: 0, input: 0, output: 0 }
+      const u = msg.usage || {}
+      agg[day][model].calls += 1
+      agg[day][model].input += u.input || 0
+      agg[day][model].output += u.output || 0
+    }
+  } catch {}
+  return agg
 }
 
+// ── CC-Switch 读取 ──────────────────────────────────────────────
+// 数据源：Windows CC-Switch 代理日志（WSL 下通过 /mnt/c 访问）
+// 适用：minimax（历史准 token）、volcano（全部历史）
 function getProviderUsageFromCC(providerId, startTs, endTs) {
+  // CC-Switch 是历史代理日志（已停止写入，仅 2026-08-14 一天数据）
+  // 不受账期约束：无论 startTs/endTs 范围多大，全量返回 DB 内的记录
+  const script = [
+    'import sqlite3, json',
+    `conn = sqlite3.connect('/mnt/c/Users/Administrator/.cc-switch/cc-switch.db')`,
+    "c = conn.cursor()",
+    `c.execute('SELECT COUNT(*), COALESCE(SUM(input_tokens),0), COALESCE(SUM(output_tokens),0) FROM proxy_request_logs WHERE provider_id=?', ['${providerId}'])`,
+    'calls, inp, out = c.fetchone()',
+    `c.execute('SELECT created_at, COUNT(*), COALESCE(SUM(input_tokens),0), COALESCE(SUM(output_tokens),0) FROM proxy_request_logs WHERE provider_id=? GROUP BY date(created_at,"unixepoch") ORDER BY created_at', ['${providerId}'])`,
+    'by_day = {}',
+    'for ts, cc, ii, oo in c.fetchall():',
+    "  day = __import__('datetime').datetime.fromtimestamp(ts).strftime('%Y-%m-%d')",
+    '  if day not in by_day: by_day[day] = {"calls":0,"input":0,"output":0}',
+    '  by_day[day]["calls"] += cc; by_day[day]["input"] += ii; by_day[day]["output"] += oo',
+    'conn.close()',
+    "print(json.dumps({'calls':calls,'input_tokens':inp,'output_tokens':out,'by_day':by_day}))"
+  ].join('\n')
   try {
-    const script = [
-      'import sqlite3, json, os',
-      `conn = sqlite3.connect('/mnt/c/Users/Administrator/.cc-switch/cc-switch.db')`,
-      'c = conn.cursor()',
-      `c.execute('SELECT COUNT(*), COALESCE(SUM(input_tokens),0), COALESCE(SUM(output_tokens),0) FROM proxy_request_logs WHERE provider_id=? AND created_at>=? AND created_at<=?', ['${providerId}', ${startTs}, ${endTs}])`,
-      'calls, inp, out = c.fetchone()',
-      `c.execute('SELECT created_at, COUNT(*), COALESCE(SUM(input_tokens),0), COALESCE(SUM(output_tokens),0) FROM proxy_request_logs WHERE provider_id=? AND created_at>=? AND created_at<=? GROUP BY created_at ORDER BY created_at', ['${providerId}', ${startTs}, ${endTs}])`,
-      'by_day = {}',
-      'for ts, cc, ii, oo in c.fetchall():',
-      "  day = __import__('datetime').datetime.fromtimestamp(ts).strftime('%Y-%m-%d')",
-      '  if day not in by_day: by_day[day] = {"calls":0,"input":0,"output":0}',
-      '  by_day[day]["calls"] += cc; by_day[day]["input"] += ii; by_day[day]["output"] += oo',
-      'conn.close()',
-      "print(json.dumps({'calls':calls,'input_tokens':inp,'output_tokens':out,'by_day':by_day}))"
-    ].join('\n')
-    const raw = execSync('python3 -c "' + script.replace(/"/g, '\\"') + '"', { timeout: 8000 })
+    const raw = execSync('python3 -c "' + script.replace(/"/g, '\\"') + '"', { timeout: 10000 })
     return JSON.parse(raw.toString())
   } catch(e) {
     return { calls: 0, input_tokens: 0, output_tokens: 0, by_day: {} }
   }
 }
 
+// ── 内存 TTL 缓存 ───────────────────────────────────────────────
+// ccSwitchCache: CC-Switch 历史数据（静态），缓存 5 分钟
+// sessionsAggCache: session-logs 聚合结果（文件 mtime 驱动），缓存 60 秒
+// 注意：session-logs 文件只追加不修改，文件 mtime 变化 = 新数据写入，缓存自动失效
+// 按 providerIds 分槽缓存 CC-Switch 数据（每槽 5 分钟）
+const ccSwitchCache = new Map()
+const sessionsAggCache = new Map()
+
+function ccCached(providerIds, startTs, endTs) {
+  const now = Date.now()
+  const key = JSON.stringify(providerIds)
+  const slot = ccSwitchCache.get(key)
+  if (slot && now - slot.ts < 300000) {
+    return slot.data
+  }
+  const ids = providerIds || []
+  const raw = ids.length > 1
+    ? getProviderUsageFromMultipleCC(ids, startTs, endTs)
+    : (ids.length === 1 ? getProviderUsageFromCC(ids[0], startTs, endTs) : { calls: 0, input_tokens: 0, output_tokens: 0, by_day: {} })
+  ccSwitchCache.set(key, { data: raw, ts: now })
+  return raw
+}
+
+function sessionsAggCached(modelNames, startTs, endTs) {
+  const now = Date.now()
+  const cacheKey = JSON.stringify({ models: modelNames, start: startTs, end: endTs })
+  const slot = sessionsAggCache.get(cacheKey)
+  if (slot && now - slot.ts < 60000) {
+    return slot.data
+  }
+  const raw = getProviderUsageFromSessions(modelNames, startTs, endTs)
+  sessionsAggCache.set(cacheKey, { data: raw, ts: now })
+  return raw
+  return raw
+}
+
 function getProviderUsageFromMultipleCC(providerIds, startTs, endTs) {
-  // 合并多个 provider 的用量
   let totalCalls = 0, totalInp = 0, totalOut = 0
   const dayMap = {}
   for (const pid of providerIds) {
     const u = getProviderUsageFromCC(pid, startTs, endTs)
-    totalCalls += u.calls
-    totalInp += u.input_tokens
-    totalOut += u.output_tokens
+    totalCalls += u.calls; totalInp += u.input_tokens; totalOut += u.output_tokens
     for (const [day, d] of Object.entries(u.by_day || {})) {
       if (!dayMap[day]) dayMap[day] = { calls: 0, input: 0, output: 0 }
-      dayMap[day].calls += d.calls
-      dayMap[day].input += d.input
-      dayMap[day].output += d.output
+      dayMap[day].calls += d.calls; dayMap[day].input += d.input; dayMap[day].output += d.output
     }
   }
   return { calls: totalCalls, input_tokens: totalInp, output_tokens: totalOut, by_day: dayMap }
 }
 
-function getModelBalancerConfig() {
-  try {
-    const cfg = JSON.parse(fs.readFileSync('/home/openclaw/.openclaw/openclaw.json', 'utf8'))
-    const modelCfg = cfg?.agents?.defaults?.model || {}
-    const primary = modelCfg.primary || 'unknown'
-    const fallbacks = modelCfg.fallbacks || []
-    const providerLabels = {
-      minimax: 'MiniMax M2.7',
-      'volcano-plan': '火山方舟 Agent Plan',
-      volcano: '火山方舟 Code Plan',
+// ── 合并用量读取（cc-switch + session-logs 互补）──
+// 策略：
+//   cc-switch 模型（minimax/volcano）: token 取 CC-Switch（准），calls 取 session-logs（覆盖全量）
+//   session-logs 模型（glm）       : token+calls 均取 session-logs
+// 账期配额百分比：按 session-logs 的全量 calls 计算（覆盖当前账期每一天）
+function getProviderUsage(cfg, startTs, endTs) {
+  if (cfg.source === 'cc-switch') {
+    // token: CC-Switch（精确历史，5分钟缓存）
+    const ccUsage = ccCached(cfg.cc_provider_ids || [], startTs, endTs)
+    // calls: session-logs（60秒缓存，受账期过滤）
+    const slUsage = sessionsAggCached(cfg.modelNames || [], startTs, endTs)
+    // 合并：token 取 CC-Switch，calls 取 session-logs，by_day 逐天合并
+    const mergedByDay = {}
+    for (const [day, d] of Object.entries(slUsage.by_day || {})) {
+      const ccDay = ccUsage.by_day?.[day] || {}
+      mergedByDay[day] = {
+        calls: d.calls,
+        input: ccDay.input || 0,
+        output: ccDay.output || 0,
+      }
     }
-    const parseModelId = (id) => {
-      const parts = id.split('/')
-      return { provider: parts[0], model: parts.slice(1).join('/') || parts[0], fullId: id }
+    // 如果 CC-Switch 有 session-logs 没有的日期，也补进来（极少数历史补录）
+    for (const [day, d] of Object.entries(ccUsage.by_day || {})) {
+      if (!mergedByDay[day]) {
+        mergedByDay[day] = { calls: 0, input: d.input || 0, output: d.output || 0 }
+      }
     }
-    const chain = [
-      { ...parseModelId(primary), role: 'primary', label: providerLabels[parseModelId(primary).provider] || primary },
-      ...fallbacks.map(f => ({ ...parseModelId(f), role: 'fallback', label: providerLabels[parseModelId(f).provider] || f })),
-    ]
-    return { primary, fallbacks, chain, strategy: 'sequential-fallback', description: '主模型失败/限流时，按顺序自动降级到备用模型' }
-  } catch {
-    return { primary: 'unknown', fallbacks: [], chain: [], strategy: 'unknown', description: '' }
+    return {
+      calls: slUsage.calls || ccUsage.calls,
+      input_tokens: ccUsage.input_tokens,
+      output_tokens: ccUsage.output_tokens,
+      by_day: mergedByDay,
+    }
   }
+  // session-logs（GLM 直连模型，60秒缓存）
+  const sl = sessionsAggCached(cfg.modelNames || [], startTs, endTs)
+  // 统一字段名：by_day 用 input/output（前端需要）
+  const by_day = {}
+  for (const [day, d] of Object.entries(sl.by_day || {})) {
+    by_day[day] = { calls: d.calls, input: d.input, output: d.output }
+  }
+  return { calls: sl.calls, input_tokens: sl.input_tokens, output_tokens: sl.output_tokens, by_day }
 }
+
+function getProviderUsageFromSessions(modelNames, startTs, endTs) {
+  const res = { calls: 0, input_tokens: 0, output_tokens: 0, by_day: {} }
+  let files = []
+  try {
+    files = fs.readdirSync(SESSIONS_DIR).filter(f => f.endsWith('.jsonl') && !f.endsWith('.trajectory.jsonl'))
+  } catch { return res }
+  const nameSet = new Set(modelNames)
+  const startDay = new Date(startTs * 1000).toISOString().slice(0, 10)
+  const endDay = new Date(endTs * 1000).toISOString().slice(0, 10)
+  for (const fname of files) {
+    const fpath = path.join(SESSIONS_DIR, fname)
+    let st
+    try { st = fs.statSync(fpath) } catch { continue }
+    // 文件最后写入早于统计起点（留1天余量）→ 不含范围内消息，跳过
+    if (st.mtimeMs < startTs * 1000 - 86400000) continue
+    // 文件名日期晚于终点 → 跳过
+    const m = fname.match(/^(\d{4}-\d{2}-\d{2})/)
+    if (m && m[1] > endDay) continue
+    let cached = fileUsageCache.get(fname)
+    if (!cached || cached.mtimeMs !== st.mtimeMs) {
+      cached = { mtimeMs: st.mtimeMs, agg: parseFileAgg(fpath) }
+      fileUsageCache.set(fname, cached)
+    }
+    for (const [day, models] of Object.entries(cached.agg)) {
+      if (day < startDay || day > endDay) continue
+      for (const [model, s] of Object.entries(models)) {
+        if (!nameSet.has(model)) continue
+        if (!res.by_day[day]) res.by_day[day] = { calls: 0, input: 0, output: 0 }
+        res.calls += s.calls
+        res.input_tokens += s.input
+        res.output_tokens += s.output
+        res.by_day[day].calls += s.calls
+        res.by_day[day].input += s.input
+        res.by_day[day].output += s.output
+      }
+    }
+  }
+  return res
+}
+
 
 app.get('/api/token/quota', async (req, res) => {
   const now = new Date()
-  const balancer = getModelBalancerConfig()
   const { start, end, range } = req.query
 
   // 计算时间范围
-  let rangeLabel = '账期'
+  let rangeLabel = '全部时间'
   let periodStart, periodEnd
+  let perProviderBilling = false   // 是否按各模型独立账期
 
   if (start && end) {
-    // 自定义范围
     rangeLabel = `${start} ~ ${end}`
     periodStart = new Date(start + 'T00:00:00')
     periodEnd = new Date(end + 'T23:59:59')
@@ -1504,48 +1648,50 @@ app.get('/api/token/quota', async (req, res) => {
     const s = new Date(now); s.setDate(s.getDate() - 30)
     periodStart = new Date(s.getFullYear(), s.getMonth(), s.getDate())
     periodEnd = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59)
-  } else if (range === 'all') {
+  } else if (range === 'per-provider') {
+    // 各模型按自己的账期（由 cycleStartDay 决定）
+    perProviderBilling = true
+    rangeLabel = '当前账期'
+    periodStart = null
+    periodEnd = null
+  } else if (range === 'all' || range === 'billing') {
     rangeLabel = '全部时间'
     periodStart = new Date(2000, 0, 1)
     periodEnd = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59)
   } else {
-    // 默认账期（取最早的账期作为参考，取各provider的平均）
-    rangeLabel = '当前账期'
-    const p16 = getProviderBillingPeriod(now, 16)
-    periodStart = new Date(p16.start + 'T00:00:00')
-    periodEnd = new Date(p16.end + 'T23:59:59')
+    // 默认全部时间
+    rangeLabel = '全部时间'
+    periodStart = new Date(2000, 0, 1)
+    periodEnd = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59)
   }
 
-  const startTs = Math.floor(periodStart.getTime() / 1000)
-  const endTs = Math.floor(periodEnd.getTime() / 1000)
-
-  const providers = Object.entries(MODEL_QUOTA_CONFIG).map(([key, cfg]) => {
-    const usage = cfg.cc_provider_ids.length > 1
-      ? getProviderUsageFromMultipleCC(cfg.cc_provider_ids, startTs, endTs)
-      : getProviderUsageFromCC(cfg.cc_provider_ids[0], startTs, endTs)
+  const providers = Object.entries(MODEL_STATS_CONFIG).map(([key, cfg]) => {
+    let pStart, pEnd, pStartTs, pEndTs
+    if (perProviderBilling) {
+      const bp = getProviderBillingPeriod(cfg.cycleStartDay || 16, now)
+      pStart = new Date(bp.start + 'T00:00:00')
+      pEnd   = new Date(bp.end   + 'T23:59:59')
+      pStartTs = Math.floor(pStart.getTime() / 1000)
+      pEndTs   = Math.floor(pEnd.getTime() / 1000)
+    } else {
+      pStartTs = Math.floor(periodStart.getTime() / 1000)
+      pEndTs   = Math.floor(periodEnd.getTime() / 1000)
+    }
+    const usage = getProviderUsage(cfg, pStartTs, pEndTs)
     const totalTokens = usage.input_tokens + usage.output_tokens
-    // 配额百分比用当前账期计算，不受筛选范围影响
-    const bp = getProviderBillingPeriod(now, cfg.billingDay)
-    const currentUsage = cfg.cc_provider_ids.length > 1
-      ? getProviderUsageFromMultipleCC(cfg.cc_provider_ids, bp.startTs, bp.endTs)
-      : getProviderUsageFromCC(cfg.cc_provider_ids[0], bp.startTs, bp.endTs)
-    const callsPercent = Math.min(100, Math.round((currentUsage.calls / cfg.monthlyQuotaCalls) * 100))
-    const isPrimary = balancer.primary.startsWith(key + '/')
-    const isFallback = balancer.fallbacks.some(f => f.startsWith(key + '/'))
     return {
       key,
       label: cfg.label,
       icon: cfg.icon,
       color: cfg.color,
-      providerId: cfg.cc_provider_ids.join(','),
-      modelName: cfg.model_name,
-      monthlyQuotaCalls: cfg.monthlyQuotaCalls,
-      billingDay: cfg.billingDay,
-      period: { start: bp.start, end: bp.end, daysRemaining: bp.daysRemaining },
+      source: cfg.source,
+      providerId: (cfg.cc_provider_ids && cfg.cc_provider_ids[0]) || cfg.provider_key,
+      cycleStartDay: cfg.cycleStartDay || 16,
+      billingPeriod: perProviderBilling
+        ? getProviderBillingPeriod(cfg.cycleStartDay || 16, now)
+        : null,
       usage: {
         calls: usage.calls,
-        callsRemaining: Math.max(0, cfg.monthlyQuotaCalls - currentUsage.calls),
-        callsPercent,
         inputTokens: usage.input_tokens,
         outputTokens: usage.output_tokens,
         totalTokens,
@@ -1554,7 +1700,6 @@ app.get('/api/token/quota', async (req, res) => {
         outputTokensFmt: fmtNumCompact(usage.output_tokens),
         byDay: usage.by_day,
       },
-      balancerRole: isPrimary ? 'primary' : isFallback ? 'fallback' : 'standby',
     }
   })
 
@@ -1564,9 +1709,13 @@ app.get('/api/token/quota', async (req, res) => {
   res.json({
     updatedAt: now.toISOString(),
     rangeLabel,
-    periodStart: periodStart.toISOString().slice(0, 10),
-    periodEnd: periodEnd.toISOString().slice(0, 10),
-    balancer,
+    periodStart: perProviderBilling
+      ? providers.map(p => p.billingPeriod?.start).filter(Boolean).sort()[0]
+      : periodStart.toLocaleDateString('en-CA'),
+    periodEnd: perProviderBilling
+      ? providers.map(p => p.billingPeriod?.end).filter(Boolean).sort().at(-1)
+      : periodEnd.toLocaleDateString('en-CA'),
+    perProviderBilling,
     providers,
     summary: {
       totalCalls,
@@ -1583,10 +1732,60 @@ function fmtNumCompact(n) {
   return String(n)
 }
 
+// ── 项目部署记录 ────────────────────────────────────────────────
+const DEPLOY_LOG = path.join(process.env.HOME || '/home/openclaw', '.openclaw', 'deployments.json')
+
+function readDeployLog() {
+  try {
+    if (fs.existsSync(DEPLOY_LOG)) {
+      return JSON.parse(fs.readFileSync(DEPLOY_LOG, 'utf8'))
+    }
+  } catch {}
+  return {}
+}
+
+function writeDeployLog(data) {
+  try {
+    fs.writeFileSync(DEPLOY_LOG, JSON.stringify(data, null, 2), 'utf8')
+  } catch {}
+}
+
+// GET /api/deployments — 获取所有部署记录
+app.get('/api/deployments', (req, res) => {
+  const { projectId } = req.query
+  const log = readDeployLog()
+  let records = Object.entries(log).flatMap(([pid, entries]) =>
+    (entries || []).map(e => ({ projectId: pid, ...e }))
+  )
+  if (projectId) records = records.filter(r => r.projectId === projectId)
+  records.sort((a, b) => (b.deployedAt || 0) - (a.deployedAt || 0))
+  res.json({ records, total: records.length })
+})
+
+// POST /api/deployments/record — 记录一次部署
+// body: { projectId, branch, gitRemote, productionUrl, deployedBy, note }
+app.post('/api/deployments/record', (req, res) => {
+  const { projectId, branch, gitRemote, productionUrl, deployedBy, note } = req.body || {}
+  if (!projectId) return res.status(400).json({ error: '缺少 projectId' })
+  const log = readDeployLog()
+  if (!log[projectId]) log[projectId] = []
+  const entry = {
+    deployedAt: Date.now(),
+    branch: branch || null,
+    gitRemote: gitRemote || null,
+    productionUrl: productionUrl || null,
+    deployedBy: deployedBy || 'unknown',
+    note: note || null,
+  }
+  log[projectId].push(entry)
+  writeDeployLog(log)
+  res.json({ ok: true, entry })
+})
+
 const PORT = 3001
 app.listen(PORT, () => {
   console.log(`CapCut Mate 代理已注册 → ${CAPCUT_TARGET}`)
   console.log(`Fleet API 已注册: GET/PUT /api/fleet/*`)
   console.log(`CC-Switch 多实例统计已注册: GET /api/cc-stats`)
-  console.log(`Token 配额 API 已注册: GET /api/token/quota`)
+  console.log(`Token 用量 API 已注册: GET /api/token/quota`)
 })
