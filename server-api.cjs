@@ -1428,10 +1428,23 @@ const MODEL_STATS_CONFIG = {
 //  口径：type=message && role=assistant（跳过 gateway-injected 等注入消息）
 //  token：API 返回 usage 时累计，否则仅计调用次数
 // ═══════════════════════════════════════════════════════════
-const SESSIONS_DIR = path.join(process.env.HOME || '/home/openclaw', '.openclaw', 'agents', 'main', 'sessions')
+// ── 所有实例 session logs 路径（全量汇总，不区分实例）───────────────────
+const SESSIONS_DIRS = [
+  path.join(process.env.HOME || '/home/openclaw', '.openclaw', 'agents', 'main', 'sessions'),
+  '/home/openclaw/docker-openclaw/instances/ai-game/.openclaw/agents/main/sessions',
+  '/home/openclaw/docker-openclaw/instances/kddev/.openclaw/agents/main/sessions',
+  '/home/openclaw/docker-openclaw/instances/kingdee/.openclaw/agents/main/sessions',
+  '/home/openclaw/docker-openclaw/instances/print3d/.openclaw/agents/main/sessions',
+  '/home/openclaw/docker-openclaw/instances/shortvideo/.openclaw/agents/main/sessions',
+  '/home/openclaw/docker-openclaw/instances/webdev/.openclaw/agents/main/sessions',
+  '/home/openclaw/docker-openclaw/instances/aigame/.openclaw/agents/main/sessions',
+  '/home/openclaw/docker-openclaw/instances/moderation/.openclaw/agents/main/sessions',
+  '/home/openclaw/.openclaw/instances/trainer/agents/main/sessions',
+]
 const SKIP_MODELS = new Set(['gateway-injected', 'delivery-mirror', ''])
 
-// 每文件聚合缓存：file → { mtimeMs, agg: {day → model → {calls, input, output}} }
+// 每文件聚合缓存：filepath → { mtimeMs, agg: {day → model → {calls, input, output}} }
+// 用完整路径作 key，避免不同实例间文件名冲突（如 2026-08-14.jsonl）
 const fileUsageCache = new Map()
 
 function parseFileAgg(fpath) {
@@ -1586,44 +1599,48 @@ function getProviderUsage(cfg, startTs, endTs) {
 
 function getProviderUsageFromSessions(modelNames, startTs, endTs) {
   const res = { calls: 0, input_tokens: 0, output_tokens: 0, by_day: {} }
-  let files = []
-  try {
-    files = fs.readdirSync(SESSIONS_DIR).filter(f => f.endsWith('.jsonl') && !f.endsWith('.trajectory.jsonl'))
-  } catch { return res }
   const nameSet = new Set(modelNames)
   const startDay = new Date(startTs * 1000).toISOString().slice(0, 10)
   const endDay = new Date(endTs * 1000).toISOString().slice(0, 10)
-  for (const fname of files) {
-    const fpath = path.join(SESSIONS_DIR, fname)
-    let st
-    try { st = fs.statSync(fpath) } catch { continue }
-    // 文件最后写入早于统计起点（留1天余量）→ 不含范围内消息，跳过
-    if (st.mtimeMs < startTs * 1000 - 86400000) continue
-    // 文件名日期晚于终点 → 跳过
-    const m = fname.match(/^(\d{4}-\d{2}-\d{2})/)
-    if (m && m[1] > endDay) continue
-    let cached = fileUsageCache.get(fname)
-    if (!cached || cached.mtimeMs !== st.mtimeMs) {
-      cached = { mtimeMs: st.mtimeMs, agg: parseFileAgg(fpath) }
-      fileUsageCache.set(fname, cached)
-    }
-    for (const [day, models] of Object.entries(cached.agg)) {
-      if (day < startDay || day > endDay) continue
-      for (const [model, s] of Object.entries(models)) {
-        if (!nameSet.has(model)) continue
-        if (!res.by_day[day]) res.by_day[day] = { calls: 0, input: 0, output: 0 }
-        res.calls += s.calls
-        res.input_tokens += s.input
-        res.output_tokens += s.output
-        res.by_day[day].calls += s.calls
-        res.by_day[day].input += s.input
-        res.by_day[day].output += s.output
+
+  for (const SESSIONS_DIR of SESSIONS_DIRS) {
+    let files = []
+    try {
+      files = fs.readdirSync(SESSIONS_DIR).filter(f => f.endsWith('.jsonl') && !f.endsWith('.trajectory.jsonl'))
+    } catch { continue }
+
+    for (const fname of files) {
+      const fpath = path.join(SESSIONS_DIR, fname)
+      let st
+      try { st = fs.statSync(fpath) } catch { continue }
+      // 文件最后写入早于统计起点（留1天余量）→ 不含范围内消息，跳过
+      if (st.mtimeMs < startTs * 1000 - 86400000) continue
+      // 文件名日期晚于终点 → 跳过
+      const m = fname.match(/^(\d{4}-\d{2}-\d{2})/)
+      if (m && m[1] > endDay) continue
+      // 用完整路径作 cache key，避免不同实例间文件名冲突
+      let cached = fileUsageCache.get(fpath)
+      if (!cached || cached.mtimeMs !== st.mtimeMs) {
+        cached = { mtimeMs: st.mtimeMs, agg: parseFileAgg(fpath) }
+        fileUsageCache.set(fpath, cached)
+      }
+      for (const [day, models] of Object.entries(cached.agg)) {
+        if (day < startDay || day > endDay) continue
+        for (const [model, s] of Object.entries(models)) {
+          if (!nameSet.has(model)) continue
+          if (!res.by_day[day]) res.by_day[day] = { calls: 0, input: 0, output: 0 }
+          res.calls += s.calls
+          res.input_tokens += s.input
+          res.output_tokens += s.output
+          res.by_day[day].calls += s.calls
+          res.by_day[day].input += s.input
+          res.by_day[day].output += s.output
+        }
       }
     }
   }
   return res
 }
-
 
 app.get('/api/token/quota', async (req, res) => {
   const now = new Date()
@@ -1782,10 +1799,489 @@ app.post('/api/deployments/record', (req, res) => {
   res.json({ ok: true, entry })
 })
 
+// ═══════════════════════════════════════════════════════════
+//  ClawHub 生态 API
+// ═══════════════════════════════════════════════════════════
+const CLAWHUB_API = 'https://clawhub.ai/api/v1'
+const DB_PATH = path.join(__dirname, 'clawhub_skills.db')
+
+// 初始化 ClawHub 数据库（确保表存在）
+function initClawhubDb() {
+  const { execSync } = require('child_process')
+  execSync(`python3 ${path.join(__dirname, '..', 'scripts', 'init-clawhub-db.py')}`, { stdio: 'pipe' })
+}
+
+function getClawhubDb() {
+  return require('better-sqlite3')(DB_PATH)
+}
+
+// 获取/更新 ClawHub Access Token（用于写操作）
+function getClawhubToken() {
+  try {
+    return execSync('openclaw skills token 2>/dev/null || echo ""', { encoding: 'utf8', timeout: 5000 }).trim()
+  } catch { return '' }
+}
+
+// 从 ClawHub API 获取技能列表（分页）
+async function fetchClawhubSkills({ q = '', sort = 'stars', limit = 30, cursor = null } = {}) {
+  const params = new URLSearchParams({ sort, limit: String(limit) })
+  if (q) params.set('q', q)
+  if (cursor) params.set('cursor', cursor)
+  const url = `${CLAWHUB_API}/skills?${params.toString()}`
+  const resp = await fetch(url, { timeout: 15000 })
+  if (!resp.ok) throw new Error(`ClawHub API ${resp.status}`)
+  return resp.json()
+}
+
+// 语义匹配：使用 MiniMax 对查询进行改写，增强关键词搜索效果
+async function expandQuery(query) {
+  try {
+    const cfg = JSON.parse(fs.readFileSync('/home/openclaw/.openclaw/openclaw.json', 'utf8'))
+    const model = cfg?.models?.providers?.minimax
+    if (!model?.apiKey) return null
+    const body = {
+      model: 'MiniMax-M2.7',
+      messages: [{
+        role: 'user',
+        content: `用户想找 AI 技能，需求是："${query}"。请生成 3 个最相关的英文搜索关键词（用逗号分隔，不超过30字），直接返回关键词，不要解释。`
+      }],
+      temperature: 0.3,
+      max_tokens: 60,
+    }
+    const baseUrl = model.baseUrl || 'https://api.minimaxi.com/v1'
+    const resp = await fetch(`${baseUrl}/text/chatcompletion_v2`, {
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${model.apiKey}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+      signal: AbortSignal.timeout(10000),
+    })
+    if (!resp.ok) return null
+    const data = await resp.json()
+    const expanded = data?.choices?.[0]?.message?.content?.trim()
+    return expanded || null
+  } catch { return null }
+}
+
+// 高危技能关键词（用于风险标注）
+const HIGH_RISK_KEYWORDS = [
+  'browser', 'browser-use', 'browser-automation', 'selenium', 'playwright',
+  'puppeteer', 'web-crawl', 'web-scrap', 'spider', 'credential', 'api-key',
+  'token-hunter', 'root', 'sudo', 'privilege-escalation', 'keylog',
+]
+const RISK_KEYWORDS_MAP = {
+  browser: 'browser', 'browser-use': 'browser', 'browser-automation': 'browser',
+  selenium: 'browser', playwright: 'browser', puppeteer: 'browser',
+  'web-crawl': 'web-scrap', 'web-scrap': 'web-scrap', spider: 'web-scrap',
+  credential: 'credential', 'api-key': 'credential', 'token-hunter': 'credential',
+}
+
+function detectRisk(skill) {
+  const text = `${skill.slug} ${skill.displayName} ${skill.summary || ''} ${(skill.topics || []).join(' ')}`.toLowerCase()
+  const matched = HIGH_RISK_KEYWORDS.filter(k => text.includes(k))
+  if (!matched.length) return null
+  const type = RISK_KEYWORDS_MAP[matched[0]] || matched[0]
+  if (['browser', 'web-scrap'].includes(type)) return 'HIGH'
+  if (['credential'].includes(type)) return 'EXTREME'
+  return 'MEDIUM'
+}
+
+// 技能自动归类
+const CATEGORY_RULES = [
+  { cat: '金蝶ERP', kws: ['kingdee', 'kd-', '金蝶', 'erp', '苍穹', '星瀚'] },
+  { cat: '短视频', kws: ['video', '抖音', '快手', 'bili', 'bilibili', '视频', '字幕', 'shortvideo'] },
+  { cat: '内容创作', kws: ['content', 'writing', '创作', '文案', 'seo', '小红书', 'social', 'blog'] },
+  { cat: 'AI模型', kws: ['image', 'tts', 'voice', 'speech', 'translate', '翻译', 'gemini', 'openai', 'llm'] },
+  { cat: '效率工具', kws: ['excel', 'docx', 'word', 'ppt', 'chart', 'pdf', '文档', '表格', 'calendar'] },
+  { cat: '浏览器', kws: ['browser', 'browser-use', 'browser-automation', 'selenium', 'playwright'] },
+  { cat: '代码', kws: ['git', 'code', 'audit', 'ci/cd', 'cicd', 'debug', 'test'] },
+  { cat: '知识管理', kws: ['knowledge', 'memory', 'note', '知识', '笔记'] },
+  { cat: '自动化', kws: ['automation', 'workflow', '自动化', 'auto'] },
+]
+
+function autoCategory(skill) {
+  const text = `${skill.slug} ${skill.displayName} ${skill.summary || ''}`.toLowerCase()
+  for (const { cat, kws } of CATEGORY_RULES) {
+    if (kws.some(k => text.includes(k))) return cat
+  }
+  return '其他'
+}
+
+// ── GET /api/clawhub/skills ────────────────────────────────────
+// 查询本地数据库，支持搜索/过滤/排序
+app.get('/api/clawhub/skills', (req, res) => {
+  try {
+    const db = getClawhubDb()
+    const { q, sort = 'stars', order = 'desc', limit = 30, offset = 0,
+            category, risk, installed, favorites } = req.query
+
+    let sql = 'SELECT * FROM skills WHERE 1=1'
+    const args = []
+
+    if (q) {
+      sql += ' AND (display_name LIKE ? OR summary LIKE ? OR slug LIKE ? OR topics LIKE ?)'
+      const like = `%${q}%`
+      args.push(like, like, like, like)
+    }
+    if (category && category !== '全部') {
+      sql += ' AND category = ?'
+      args.push(category)
+    }
+    if (risk && risk !== '全部') {
+      sql += ' AND risk_level = ?'
+      args.push(risk)
+    }
+    if (installed === 'true')  sql += ' AND is_installed = 1'
+    if (installed === 'false') sql += ' AND is_installed = 0'
+    if (favorites === 'true') sql += ' AND is_favorite = 1'
+
+    const sortCol = ['stars', 'downloads', 'installs', 'updated_at', 'display_name'].includes(sort) ? sort : 'stars'
+    const ord = order === 'asc' ? 'ASC' : 'DESC'
+    sql += ` ORDER BY ${sortCol} ${ord}`
+
+    sql += ' LIMIT ? OFFSET ?'
+    args.push(parseInt(limit) || 30, parseInt(offset) || 0)
+
+    const skills = db.prepare(sql).all(...args)
+    const total = db.prepare('SELECT COUNT(*) FROM skills').get()['COUNT(*)']
+    db.close()
+
+    res.json({
+      skills: skills.map(s => ({
+        ...s,
+        topics: s.topics ? JSON.parse(s.topics) : [],
+        tags: s.tags ? JSON.parse(s.tags) : {},
+      })),
+      total,
+    })
+  } catch (e) {
+    console.error('[clawhub/skills]', e.message)
+    res.status(500).json({ error: e.message })
+  }
+})
+
+// ── GET /api/clawhub/skill/:slug ───────────────────────────────
+app.get('/api/clawhub/skill/:slug', (req, res) => {
+  try {
+    const db = getClawhubDb()
+    const skill = db.prepare('SELECT * FROM skills WHERE slug = ?').get(req.params.slug)
+    db.close()
+    if (!skill) return res.status(404).json({ error: '技能不存在' })
+    res.json({
+      ...skill,
+      topics: skill.topics ? JSON.parse(skill.topics) : [],
+      tags: skill.tags ? JSON.parse(skill.tags) : {},
+    })
+  } catch (e) {
+    res.status(500).json({ error: e.message })
+  }
+})
+
+// ── POST /api/clawhub/sync ─────────────────────────────────────
+// 从 ClawHub 同步高星技能到本地数据库
+app.post('/api/clawhub/sync', async (req, res) => {
+  try {
+    const { q = '', sort = 'stars', limit = 50, highRiskFilter = false } = req.body
+
+    let query = q
+    // 语义扩展（如果配置了 MiniMax）
+    const expanded = await expandQuery(q)
+    if (expanded) {
+      console.log(`[clawhub/sync] 语义扩展: "${q}" → "${expanded}"`)
+      query = expanded.split(',')[0].trim()
+    }
+
+    const fetched = await fetchClawhubSkills({ q: query, sort, limit })
+    const items = fetched.items || []
+
+    const db = getClawhubDb()
+    const upsert = db.prepare(`
+      INSERT INTO skills (slug, display_name, owner, summary, description, topics,
+        tags, stars, downloads, installs, comments, license,
+        version, changelog, created_at, updated_at, version_created_at, fetched_at, risk_level, category)
+      VALUES (@slug, @display_name, @owner, @summary, @description, @topics,
+        @tags, @stars, @downloads, @installs, @comments, @license,
+        @version, @changelog, @created_at, @updated_at, @version_created_at, @fetched_at, @risk_level, @category)
+      ON CONFLICT(slug) DO UPDATE SET
+        display_name=excluded.display_name, owner=excluded.owner, summary=excluded.summary,
+        description=excluded.description, topics=excluded.topics,
+        stars=excluded.stars, downloads=excluded.downloads,
+        installs=excluded.installs, comments=excluded.comments,
+        version=excluded.version, changelog=excluded.changelog,
+        updated_at=excluded.updated_at, version_created_at=excluded.version_created_at,
+        fetched_at=excluded.fetched_at,
+        risk_level=CASE WHEN risk_level IS NULL THEN excluded.risk_level ELSE risk_level END,
+        category=CASE WHEN category='其他' THEN excluded.category ELSE category END
+    `)
+
+    let synced = 0
+    for (const item of items) {
+      const risk = highRiskFilter ? detectRisk(item) : null
+      // owner 为 null/unknown 时默认用 'openclaw'（ClawHub 官方命名空间）
+      const ownerKey = (item.owner && item.owner !== 'unknown') ? item.owner : 'openclaw'
+      upsert.run({
+        slug: item.slug,
+        display_name: item.displayName || item.slug,
+        owner: ownerKey,
+        summary: item.summary || '',
+        description: item.description || '',
+        topics: JSON.stringify(item.topics || []),
+        tags: JSON.stringify(item.tags || {}),
+        stars: item.stats?.stars || 0,
+        downloads: item.stats?.downloads || 0,
+        installs: item.stats?.installs || 0,
+        comments: item.stats?.comments || 0,
+        license: item.latestVersion?.license || null,
+        version: item.latestVersion?.version || null,
+        changelog: item.latestVersion?.changelog || null,
+        created_at: item.createdAt || null,
+        updated_at: item.updatedAt || null,
+        version_created_at: item.latestVersion?.createdAt || null,
+        fetched_at: Date.now(),
+        risk_level: risk,
+        category: autoCategory(item),
+      })
+      synced++
+    }
+
+    const total = db.prepare('SELECT COUNT(*) FROM skills').get()['COUNT(*)']
+    db.close()
+
+    res.json({ ok: true, synced, total, fetched: items.length, query, expanded: expanded || null })
+  } catch (e) {
+    console.error('[clawhub/sync]', e.message)
+    res.status(500).json({ error: e.message })
+  }
+})
+
+// ── POST /api/clawhub/audit/:slug ──────────────────────────────
+// 调用 skill-vetter 技能进行真正的安全审计
+app.post('/api/clawhub/audit/:slug', async (req, res) => {
+  try {
+    const { slug } = req.params
+    const { owner } = req.body
+
+    // 1. 获取技能详情（从 ClawHub API）
+    let skillData = null
+    try {
+      // 尝试直接获取技能详情
+      const resp = await fetch(`${CLAWHUB_API}/skills/${slug}`, { timeout: 10000 })
+      if (resp.ok) skillData = await resp.json()
+    } catch {}
+
+    // 2. 尝试获取 SKILL.md 内容
+    let skillMdContent = null
+    let skillMdSource = null
+    try {
+      // 优先从本地已安装技能读取
+      const localPath = `/home/openclaw/.openclaw/workspace/skills/${slug}/SKILL.md`
+      if (fs.existsSync(localPath)) {
+        skillMdContent = fs.readFileSync(localPath, 'utf8')
+        skillMdSource = 'local'
+      } else {
+        // 从 ClawHub raw 文件获取
+        const fetchUrl = `https://clawhub.ai/api/v1/skills/${slug}/raw`
+        const r = await fetch(fetchUrl, { timeout: 8000 })
+        if (r.ok) {
+          skillMdContent = await r.text()
+          skillMdSource = 'clawhub'
+        }
+      }
+    } catch {}
+
+    // 3. 尝试调用本地 skill-vetter 技能
+    let skillVetterResult = null
+    try {
+      // 用 openclaw skills run 调用 skill-vetter
+      const skillRef = `${owner && owner !== 'unknown' ? '@' + owner + '/' : ''}${slug}`
+      const auditCmd = `openclaw skills run skill-vetter --skill-ref "${skillRef}" 2>&1`
+      console.log(`[clawhub/audit] 调用 skill-vetter: ${skillRef}`)
+      skillVetterResult = execSync(auditCmd, { encoding: 'utf8', timeout: 30000, maxBuffer: 1024 * 200 })
+    } catch (e) {
+      console.log(`[clawhub/audit] skill-vetter 未返回: ${e.message.slice(0, 100)}`)
+    }
+
+    const now = Date.now()
+    const db = getClawhubDb()
+    const skill = db.prepare('SELECT * FROM skills WHERE slug = ?').get(slug)
+    db.close()
+
+    const riskLevel = detectRisk(skillData || skill || { slug })
+
+    const report = {
+      skill: slug,
+      owner: owner || skill?.owner || 'openclaw',
+      version: skillData?.latestVersion?.version || skill?.version || '',
+      source: 'ClawHub',
+      metrics: {
+        stars: skillData?.stats?.stars || skill?.stars || 0,
+        downloads: skillData?.stats?.downloads || skill?.downloads || 0,
+        installs: skillData?.stats?.installs || skill?.installs || 0,
+        lastUpdated: skillData?.updatedAt || skill?.updated_at || null,
+      },
+      redFlags: [],
+      permissions: { files: [], network: [], commands: [] },
+      riskLevel: riskLevel || 'LOW',
+      verdict: riskLevel === 'EXTREME' ? 'REJECT' : riskLevel === 'HIGH' ? 'CAUTION' : 'SAFE',
+      notes: '',
+      skillMdSource: skillMdSource,
+      skillVetterOutput: skillVetterResult || null,
+    }
+
+    // 分析 SKILL.md 内容
+    if (skillMdContent) {
+      const redFlagPatterns = [
+        { pattern: /curl\s+-s\s+https?:/, flag: 'curl 下载未知文件' },
+        { pattern: /wget\s+/, flag: 'wget 下载未知文件' },
+        { pattern: /exec\s*\(|eval\s*\(/, flag: '动态代码执行' },
+        { pattern: /base64\s+(-d\s+)?<<<|frombase64/, flag: 'Base64 编码内容' },
+        { pattern: /\$\([^)]+\)/, flag: '命令注入风险' },
+        { pattern: /\/.ssh|\/.aws|\/.config/, flag: '访问凭证目录' },
+        { pattern: /sudo|chmod\s+[47]|[0-9]{3,4}/, flag: '权限变更操作' },
+        { pattern: /api[_-]?key|token|password|secret/, flag: '请求凭据字段' },
+        { pattern: /eval\s*\(/, flag: 'eval 动态执行' },
+      ]
+      for (const { pattern, flag } of redFlagPatterns) {
+        if (pattern.test(skillMdContent)) report.redFlags.push(flag)
+      }
+    }
+
+    // 如果 skill-vetter 有输出，追加到 notes
+    if (skillVetterResult) {
+      report.notes = `[skill-vetter 输出]\n${skillVetterResult.slice(0, 500)}`
+    }
+
+    // 保存审计记录
+    const auditDb = getClawhubDb()
+    auditDb.prepare(`
+      INSERT INTO audit_logs (skill_slug, risk_level, verdict, red_flags, permissions, notes, raw_report)
+      VALUES (?, ?, ?, ?, ?, ?, ?)
+    `).run(
+      slug,
+      report.riskLevel,
+      report.verdict,
+      JSON.stringify(report.redFlags),
+      JSON.stringify(report.permissions),
+      report.notes,
+      JSON.stringify(report, null, 2)
+    )
+
+    auditDb.prepare('UPDATE skills SET audited = 1, audited_at = ?, risk_level = ? WHERE slug = ?')
+      .run(now, report.riskLevel, slug)
+    auditDb.close()
+
+    res.json({ ok: true, report })
+  } catch (e) {
+    console.error('[clawhub/audit]', e.message)
+    res.status(500).json({ error: e.message })
+  }
+})
+
+// ── POST /api/clawhub/install/:slug ────────────────────────────
+// 安装技能到本地（调用 openclaw skills install）
+app.post('/api/clawhub/install/:slug', async (req, res) => {
+  const { slug } = req.params
+  const { owner } = req.body
+  // 正确的安装命令：@owner/skill 或直接 skill 名（官方技能）
+  const ownerKey = (owner && owner !== 'unknown') ? owner : null
+  const skillRef = ownerKey ? `@${ownerKey}/${slug}` : slug
+  const installCmd = `openclaw skills install ${skillRef}`
+
+  try {
+    const cmd = `openclaw skills install ${skillRef} --acknowledge-clawhub-risk`
+    const result = execSync(cmd, { encoding: 'utf8', timeout: 60000 })
+
+    // 更新安装状态
+    const db = getClawhubDb()
+    db.prepare('UPDATE skills SET is_installed = 1 WHERE slug = ?').run(slug)
+    db.prepare('INSERT INTO install_logs (skill_slug, action, status) VALUES (?, ?, ?)')
+      .run(slug, 'install', 'success')
+    db.close()
+
+    res.json({ ok: true, message: `技能 ${skillRef} 安装成功`, output: result })
+  } catch (e) {
+    const db = getClawhubDb()
+    db.prepare('INSERT INTO install_logs (skill_slug, action, status, note) VALUES (?, ?, ?, ?)')
+      .run(slug, 'install', 'failed', e.message)
+    db.close()
+    res.status(500).json({ ok: false, error: e.message })
+  }
+})
+
+// ── PUT /api/clawhub/skill/:slug ───────────────────────────────
+// 更新技能元数据（分类、标签等）
+app.put('/api/clawhub/skill/:slug', (req, res) => {
+  try {
+    const db = getClawhubDb()
+    const { category, risk_level, is_favorite, audit_note } = req.body
+    const updates = []
+    const args = []
+    if (category !== undefined) { updates.push('category = ?'); args.push(category) }
+    if (risk_level !== undefined) { updates.push('risk_level = ?'); args.push(risk_level) }
+    if (is_favorite !== undefined) { updates.push('is_favorite = ?'); args.push(is_favorite ? 1 : 0) }
+    if (audit_note !== undefined) { updates.push('audit_note = ?'); args.push(audit_note) }
+    if (!updates.length) return res.status(400).json({ error: '没有可更新的字段' })
+    args.push(req.params.slug)
+    db.prepare(`UPDATE skills SET ${updates.join(', ')} WHERE slug = ?`).run(...args)
+    db.close()
+    res.json({ ok: true })
+  } catch (e) {
+    res.status(500).json({ error: e.message })
+  }
+})
+
+// ── DELETE /api/clawhub/skill/:slug ────────────────────────────
+// 从数据库删除技能记录
+app.delete('/api/clawhub/skill/:slug', (req, res) => {
+  try {
+    const db = getClawhubDb()
+    db.prepare('DELETE FROM skills WHERE slug = ?').run(req.params.slug)
+    db.prepare('DELETE FROM audit_logs WHERE skill_slug = ?').run(req.params.slug)
+    db.close()
+    res.json({ ok: true })
+  } catch (e) {
+    res.status(500).json({ error: e.message })
+  }
+})
+
+// ── GET /api/clawhub/audit-logs ────────────────────────────────
+app.get('/api/clawhub/audit-logs', (req, res) => {
+  try {
+    const db = getClawhubDb()
+    const logs = db.prepare('SELECT * FROM audit_logs ORDER BY created_at DESC LIMIT 100').all()
+    db.close()
+    res.json(logs.map(l => ({ ...l, red_flags: l.red_flags ? JSON.parse(l.red_flags) : [], permissions: l.permissions ? JSON.parse(l.permissions) : {} })))
+  } catch (e) {
+    res.status(500).json({ error: e.message })
+  }
+})
+
+// ── GET /api/clawhub/stats ─────────────────────────────────────
+// 数据库统计
+app.get('/api/clawhub/stats', (req, res) => {
+  try {
+    const db = getClawhubDb()
+    const total = db.prepare('SELECT COUNT(*) FROM skills').get()['COUNT(*)']
+    const audited = db.prepare('SELECT COUNT(*) FROM skills WHERE audited = 1').get()['COUNT(*)']
+    const installed = db.prepare('SELECT COUNT(*) FROM skills WHERE is_installed = 1').get()['COUNT(*)']
+    const highRisk = db.prepare("SELECT COUNT(*) FROM skills WHERE risk_level IN ('HIGH','EXTREME')").get()['COUNT(*)']
+    const topStars = db.prepare('SELECT slug, display_name, stars FROM skills ORDER BY stars DESC LIMIT 5').all()
+    const recentSync = db.prepare('SELECT fetched_at FROM skills ORDER BY fetched_at DESC LIMIT 1').get()
+    db.close()
+    res.json({ total, audited, installed, highRisk, topStars, lastSync: recentSync?.fetched_at || null })
+  } catch (e) {
+    res.status(500).json({ error: e.message })
+  }
+})
+
 const PORT = 3001
+
+// 启动时初始化 ClawHub 数据库
+try { initClawhubDb() } catch (e) { console.error('[clawhub] DB init error:', e.message) }
+
 app.listen(PORT, () => {
   console.log(`CapCut Mate 代理已注册 → ${CAPCUT_TARGET}`)
   console.log(`Fleet API 已注册: GET/PUT /api/fleet/*`)
   console.log(`CC-Switch 多实例统计已注册: GET /api/cc-stats`)
   console.log(`Token 用量 API 已注册: GET /api/token/quota`)
+  console.log(`ClawHub 生态 API 已注册: GET/POST /api/clawhub/*`)
 })

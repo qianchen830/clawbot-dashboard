@@ -8,6 +8,7 @@ import GitManager from './components/GitManager'
 import ProjectHub from './components/ProjectHub'
 import DataCenter from './components/DataCenter'
 import SkillLibrary from './components/SkillLibrary'
+import ClawHubEcosystem from './components/ClawHubEcosystem'
 import DeliveryCockpit from './components/DeliveryCockpit'
 import StatusBar from './components/StatusBar'
 import FleetCluster from './components/FleetCluster'
@@ -55,6 +56,8 @@ export default function App() {
         return <DataCenter />
       case 'skills':
         return <SkillLibrary />
+      case 'clawhub':
+        return <ClawHubEcosystem />
       case 'fleet':
         return <FleetCluster />
       case 'token':
