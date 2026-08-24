@@ -32,6 +32,7 @@ function normalizeSkillName(name) {
   return String(name || '')
     .replace(/\.zip$/i, '')
     .replace(/[-_]?v?\d+(?:\.\d+){1,3}$/i, '')
+    .replace(/[/\-]/g, ' ')
     .toLowerCase()
 }
 

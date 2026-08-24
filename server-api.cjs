@@ -1824,8 +1824,35 @@ function getClawhubToken() {
 
 // 从 ClawHub API 获取技能列表（分页）
 async function fetchClawhubSkills({ q = '', sort = 'stars', limit = 30, cursor = null } = {}) {
+  // 优先用 search API（返回真实 owner/install.reference）
+  if (q) {
+    const params = new URLSearchParams({ q, limit: String(Math.min(limit, 50)) })
+    const url = `${CLAWHUB_API}/search?${params.toString()}`
+    const resp = await fetch(url, { timeout: 15000 })
+    if (!resp.ok) throw new Error(`ClawHub search API ${resp.status}`)
+    const data = await resp.json()
+    // search API 返回 { results: [{ displayName, install: { reference }, stats, ... }] }
+    const items = (data.results || []).map(item => {
+      const ref = item.install?.reference || ''
+      const parts = ref.split('/')
+      const ownerFromRef = parts.length >= 2 ? parts[0] : 'openclaw'
+      const slugFromRef = parts.length >= 2 ? parts[1] : item.displayName
+      return {
+        slug: slugFromRef,
+        displayName: item.displayName || slugFromRef,
+        owner: ownerFromRef,
+        summary: item.description || '',
+        description: item.description || '',
+        topics: item.topics || [],
+        tags: item.tags || {},
+        stats: item.stats || { stars: item.downloads || 0, downloads: item.downloads || 0, installs: 0 },
+        latestVersion: item.latestVersion || {},
+      }
+    })
+    return { items, total: items.length }
+  }
+  // 无关键词时用 skills 列表 API
   const params = new URLSearchParams({ sort, limit: String(limit) })
-  if (q) params.set('q', q)
   if (cursor) params.set('cursor', cursor)
   const url = `${CLAWHUB_API}/skills?${params.toString()}`
   const resp = await fetch(url, { timeout: 15000 })
@@ -1876,7 +1903,8 @@ const RISK_KEYWORDS_MAP = {
 }
 
 function detectRisk(skill) {
-  const text = `${skill.slug} ${skill.displayName} ${skill.summary || ''} ${(skill.topics || []).join(' ')}`.toLowerCase()
+  const topics = Array.isArray(skill.topics) ? skill.topics : (skill.topics ? String(skill.topics).split(',') : [])
+  const text = `${skill.slug} ${skill.displayName} ${skill.summary || ''} ${topics.join(' ')}`.toLowerCase()
   const matched = HIGH_RISK_KEYWORDS.filter(k => text.includes(k))
   if (!matched.length) return null
   const type = RISK_KEYWORDS_MAP[matched[0]] || matched[0]
@@ -2016,8 +2044,21 @@ app.post('/api/clawhub/sync', async (req, res) => {
     let synced = 0
     for (const item of items) {
       const risk = highRiskFilter ? detectRisk(item) : null
-      // owner 为 null/unknown 时默认用 'openclaw'（ClawHub 官方命名空间）
-      const ownerKey = (item.owner && item.owner !== 'unknown') ? item.owner : 'openclaw'
+      // owner 为 null/unknown 时，从 /skills/{slug} API 获取真实 owner
+      let ownerKey = (item.owner && item.owner !== 'unknown' && item.owner !== null) ? item.owner : null
+      if (!ownerKey) {
+        try {
+          const detailResp = await fetch(`${CLAWHUB_API}/skills/${item.slug}`, { timeout: 8000 })
+          if (detailResp.ok) {
+            const detail = await detailResp.json()
+            if (detail.owner) {
+              ownerKey = typeof detail.owner === 'string' ? detail.owner
+                : detail.owner?.handle || null
+            }
+          }
+        } catch {}
+      }
+      ownerKey = ownerKey || 'openclaw'
       upsert.run({
         slug: item.slug,
         display_name: item.displayName || item.slug,
@@ -2181,29 +2222,55 @@ app.post('/api/clawhub/audit/:slug', async (req, res) => {
 app.post('/api/clawhub/install/:slug', async (req, res) => {
   const { slug } = req.params
   const { owner } = req.body
-  // 正确的安装命令：@owner/skill 或直接 skill 名（官方技能）
-  const ownerKey = (owner && owner !== 'unknown') ? owner : null
-  const skillRef = ownerKey ? `@${ownerKey}/${slug}` : slug
-  const installCmd = `openclaw skills install ${skillRef}`
+
+  // 从数据库读取真实 owner
+  const db = getClawhubDb()
+  const skill = db.prepare('SELECT * FROM skills WHERE slug = ?').get(slug)
+  db.close()
+
+  // 优先用请求传入的 owner → DB 里的 owner → 最后才用 null（兜底）
+  const rawOwner = (owner && owner !== 'unknown') ? owner : (skill?.owner && skill.owner !== 'unknown') ? skill.owner : null
+  // ClawHub owner 格式为 namespace:owner（如 skills-sh:coreyhaines31）
+  // openclaw install 命令格式为 @namespace/owner/skill（如 @skills-sh/coreyhaines31/marketingskills）
+  let installCmd
+  if (rawOwner && rawOwner.includes(':')) {
+    const [ns, user] = rawOwner.split(':', 2)
+    installCmd = `openclaw skills install @${ns}/${user}/${slug} --acknowledge-clawhub-risk`
+  } else if (rawOwner) {
+    installCmd = `openclaw skills install @${rawOwner}/${slug} --acknowledge-clawhub-risk`
+  } else {
+    installCmd = `openclaw skills install ${slug} --acknowledge-clawhub-risk`
+  }
+  console.log(`[clawhub/install] 安装命令: ${installCmd}`)
 
   try {
-    const cmd = `openclaw skills install ${skillRef} --acknowledge-clawhub-risk`
-    const result = execSync(cmd, { encoding: 'utf8', timeout: 60000 })
+    const result = execSync(installCmd, { encoding: 'utf8', timeout: 60000 })
 
     // 更新安装状态
-    const db = getClawhubDb()
-    db.prepare('UPDATE skills SET is_installed = 1 WHERE slug = ?').run(slug)
-    db.prepare('INSERT INTO install_logs (skill_slug, action, status) VALUES (?, ?, ?)')
+    const db2 = getClawhubDb()
+    db2.prepare('UPDATE skills SET is_installed = 1 WHERE slug = ?').run(slug)
+    db2.prepare('INSERT INTO install_logs (skill_slug, action, status) VALUES (?, ?, ?)')
       .run(slug, 'install', 'success')
-    db.close()
+    db2.close()
 
-    res.json({ ok: true, message: `技能 ${skillRef} 安装成功`, output: result })
+    const displayRef = rawOwner ? `@${rawOwner}/${slug}` : slug
+    res.json({ ok: true, message: `技能 ${displayRef} 安装成功`, output: result })
   } catch (e) {
-    const db = getClawhubDb()
-    db.prepare('INSERT INTO install_logs (skill_slug, action, status, note) VALUES (?, ?, ?, ?)')
-      .run(slug, 'install', 'failed', e.message)
-    db.close()
-    res.status(500).json({ ok: false, error: e.message })
+    // 解析错误原因，给出友好提示
+    let reason = e.message
+    if (reason.includes('404') || reason.includes('Skill not found')) {
+      reason = `ClawHub 上找不到「${slug}」或该技能已下架（404）。可尝试从搜索结果中选其他技能。`
+    } else if (reason.includes('Invalid ClawHub owner handle') || reason.includes('Invalid ClawHub skill reference')) {
+      reason = `该技能的 owner「${rawOwner}」格式不支持（包含冒号或特殊字符），ClawHub 安装命令无法解析。请换一个技能试试。`
+    } else if (reason.includes('already exists')) {
+      reason = `技能已存在于本地，无需重复安装。`
+    }
+
+    const db2 = getClawhubDb()
+    db2.prepare('INSERT INTO install_logs (skill_slug, action, status, note) VALUES (?, ?, ?, ?)')
+      .run(slug, 'install', 'failed', reason)
+    db2.close()
+    res.status(500).json({ ok: false, error: reason })
   }
 })
 
