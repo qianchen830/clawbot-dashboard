@@ -241,10 +241,10 @@ export default function FleetCluster() {
 
   // ── 实例分组 ───────────────────────────────────────────────
   const externalInsts = instances.filter(i =>
-    i.is_master || i.runtime === 'native-wsl' || i.runtime === 'ssh' || i.runtime === 'wsl'
+    i.is_master || !i.container
   )
   const dockerInsts = instances.filter(i =>
-    !i.is_master && i.container != null && i.runtime !== 'native-wsl' && i.runtime !== 'ssh' && i.runtime !== 'wsl'
+    i.container != null
   )
 
   const extOnline = externalInsts.filter(i => i.status === 'online').length

@@ -22,12 +22,12 @@ export const SERVICES_CONFIG = [
   { name: '售前管理',            port: 3210,  icon: '📊', description: 'Express + SQLite（前后端共用3210）' },
   { name: 'CapCut Mate',        port: 30001, icon: '✂️', description: 'WSL Python 服务' },
   // ── Docker 实例集群 ──
-  { name: '短视频助手',           port: 18809, icon: '🎬', description: 'Docker shortvideo' },
-  { name: '金蝶交付助手',         port: 18829, icon: '🏢', description: 'Docker kingdee' },
-  { name: '3D打印助手',          port: 18849, icon: '🖨️', description: 'Docker print3d' },
-  { name: 'AI游戏助手',           port: 18869, icon: '🎮', description: 'Docker ai-game' },
-  { name: '网页开发助手',         port: 18889, icon: '💻', description: 'Docker webdev' },
-  { name: '审查员实例',           port: 18909, icon: '🔍', description: 'Docker moderation' },
+  { name: '短视频助手',           port: 18809, icon: '🎬', description: 'Host shortvideo' },
+  { name: '金蝶交付助手',         port: 18829, icon: '🏢', description: 'Host kingdee' },
+  { name: '3D打印助手',          port: 18849, icon: '🖨️', description: 'Host print3d' },
+  { name: 'AI游戏助手',           port: 18869, icon: '🎮', description: 'Host ai-game' },
+  { name: '网页开发助手',         port: 18889, icon: '💻', description: 'Host webdev' },
+  { name: '审查员实例',           port: 18909, icon: '🔍', description: 'Host moderation' },
 ]
 
 // 检查单个服务状态（带重试，更稳定）
