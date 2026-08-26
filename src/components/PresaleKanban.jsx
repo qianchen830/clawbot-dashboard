@@ -213,13 +213,13 @@ export default function PresaleKanban() {
       {/* ── Main Tabs ── */}
       <div className="main-tabs" id="mainTabs">
         <button className={`mtab ${mainTab === 'analysis' ? 'active' : ''}`} onClick={() => setMainTab('analysis')}>
-          <BarChart3 size={16} /> 售前分析
+          <BarChart3 size={16} /> 首页
         </button>
         <button className={`mtab ${mainTab === 'lists' ? 'active' : ''}`} onClick={() => setMainTab('lists')}>
-          <List size={16} /> 售前清单
+          <List size={16} /> 数据
         </button>
         <button className={`mtab ${mainTab === 'contracts' ? 'active' : ''}`} onClick={() => setMainTab('contracts')}>
-          <FileSignature size={16} /> 合同清单
+          <FileSignature size={16} /> 看板
         </button>
       </div>
 

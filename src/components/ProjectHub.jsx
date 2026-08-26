@@ -47,16 +47,23 @@ const PROJECTS = [
   {
     id: 'rent-reminder',
     name: '收租提醒 APP',
-    description: '租房/售房提醒的移动端应用（Vite + React + Capacitor）',
-    port: 3003,
-    localUrl: 'http://localhost:3003',
+    description: '租房/售房提醒的移动端应用（Vite + React + Capacitor + 极光推送）',
+    port: 3310,
+    localUrl: 'http://localhost:3310',
     gitPath: '/home/openclaw/.openclaw/workspace/rent-reminder-app',
     branch: 'master',
-    tunnelPort: 3003,
+    tunnelPort: 3310,
     tunnelUrl: '',
-    autoStart: false,
-    startCmd: 'cd /home/openclaw/.openclaw/workspace/rent-reminder-app && nohup npx vite preview --port 3003 --host 0.0.0.0 > /tmp/rent-reminder.log 2>&1 &',
-    stopPorts: [3003],
+    autoStart: true,
+    startCmd: 'cd /home/openclaw/.openclaw/workspace/rent-reminder-app && nohup node server.js > /tmp/rent-reminder-server.log 2>&1 & nohup node proxy.js > /tmp/rent-reminder-proxy.log 2>&1 &',
+    stopPorts: [3002, 3310],
+    // ── 生产发布信息 ──
+    deployed: true,
+    productionEnv: 'tencent-cloud',
+    productionUrl: 'http://1.14.45.222:3310',
+    productionBranch: 'master',
+    productionGitRemote: 'origin',
+    lastDeployTime: 1787722800000, // 2026-08-26 16:40:00 CST
   },
   {
     id: 'presale',
@@ -77,7 +84,7 @@ const PROJECTS = [
     productionUrl: 'http://1.14.45.222:3210',
     productionBranch: 'main',
     productionGitRemote: 'production',
-    lastDeployTime: 1787380500000, // 2026-08-22 14:35:00 CST
+    lastDeployTime: 1787722800000, // 2026-08-26 16:40:00 CST
   },
 ]
 
