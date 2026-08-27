@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Home, BookOpen, BarChart2, RefreshCw, Wrench, Rocket, Server, GitBranch, Zap, Folder, LayoutDashboard, Star } from 'lucide-react'
+import { Home, BookOpen, BarChart2, RefreshCw, Wrench, Rocket, Server, GitBranch, Zap, Folder, LayoutDashboard, Star, FileText } from 'lucide-react'
 import './NavSidebar.css'
 
 const API_BASE = ''
@@ -10,6 +10,7 @@ const NAV_ITEMS = [
   { id: 'skills', label: '技能库', icon: Wrench, view: 'skills' },
   { id: 'clawhub', label: 'ClawHub生态', icon: Star, view: 'clawhub' },
   { id: 'knowledge', label: '知识中心', icon: BookOpen, view: 'knowledge' },
+  { id: 'content', label: '图文制作', icon: FileText, view: 'content' },
   { id: 'projects', label: '项目中心', icon: Folder, view: 'projects' },
   { id: 'git', label: 'Git管理', icon: GitBranch, view: 'git' },
   { id: 'data', label: '数据中心', icon: BarChart2, view: 'data' },

@@ -2340,6 +2340,111 @@ app.get('/api/clawhub/stats', (req, res) => {
   }
 })
 
+// ── 图文制作 articles 表 ────────────────────────────────────────
+const CONTENT_DB_PATH = path.join(__dirname, 'projects.db')
+
+function getArticlesDb() {
+  const BetterSqlite3 = require('better-sqlite3')
+  const db = new BetterSqlite3(CONTENT_DB_PATH)
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS articles (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      title TEXT NOT NULL,
+      platform TEXT DEFAULT 'wechat',
+      status TEXT DEFAULT 'draft',
+      author TEXT DEFAULT '',
+      tags TEXT DEFAULT '',
+      summary TEXT DEFAULT '',
+      content_path TEXT DEFAULT '',
+      publish_time TEXT,
+      remark TEXT DEFAULT '',
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    )
+  `)
+  return db
+}
+
+// GET /api/content/articles
+app.get('/api/content/articles', (req, res) => {
+  try {
+    const db = getArticlesDb()
+    const { platform, status, search } = req.query
+    let sql = 'SELECT * FROM articles WHERE 1=1'
+    const params = []
+    if (platform && platform !== 'all') { sql += ' AND platform = ?'; params.push(platform) }
+    if (status && status !== 'all') { sql += ' AND status = ?'; params.push(status) }
+    if (search) { sql += ' AND (title LIKE ? OR tags LIKE ? OR summary LIKE ?)'; params.push(`%${search}%`, `%${search}%`, `%${search}%`) }
+    sql += ' ORDER BY updated_at DESC'
+    const rows = db.prepare(sql).all(...params)
+    db.close()
+    res.json(rows)
+  } catch (e) {
+    res.status(500).json({ error: e.message })
+  }
+})
+
+// GET /api/content/articles/:id
+app.get('/api/content/articles/:id', (req, res) => {
+  try {
+    const db = getArticlesDb()
+    const row = db.prepare('SELECT * FROM articles WHERE id = ?').get(req.params.id)
+    db.close()
+    if (!row) return res.status(404).json({ error: '文章不存在' })
+    res.json(row)
+  } catch (e) {
+    res.status(500).json({ error: e.message })
+  }
+})
+
+// POST /api/content/articles
+app.post('/api/content/articles', (req, res) => {
+  try {
+    const { title, platform, status, author, tags, summary, content_path, publish_time, remark } = req.body
+    if (!title) return res.status(400).json({ error: '标题不能为空' })
+    const db = getArticlesDb()
+    const result = db.prepare(`
+      INSERT INTO articles (title, platform, status, author, tags, summary, content_path, publish_time, remark)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(title, platform||'wechat', status||'draft', author||'', tags||'', summary||'', content_path||'', publish_time||null, remark||'')
+    db.close()
+    res.json({ id: result.lastInsertRowid, message: '创建成功' })
+  } catch (e) {
+    res.status(500).json({ error: e.message })
+  }
+})
+
+// PUT /api/content/articles/:id
+app.put('/api/content/articles/:id', (req, res) => {
+  try {
+    const { id } = req.params
+    const { title, platform, status, author, tags, summary, content, content_path, publish_time, remark } = req.body
+    const db = getArticlesDb()
+    db.prepare(`
+      UPDATE articles SET
+        title=?, platform=?, status=?, author=?, tags=?, summary=?,
+        content=?, content_path=?, publish_time=?, remark=?, updated_at=CURRENT_TIMESTAMP
+      WHERE id=?
+    `).run(title, platform, status, author, tags, summary, content, content_path, publish_time, remark, id)
+    db.close()
+    res.json({ message: '更新成功' })
+  } catch (e) {
+    res.status(500).json({ error: e.message })
+  }
+})
+
+// DELETE /api/content/articles/:id
+app.delete('/api/content/articles/:id', (req, res) => {
+  try {
+    const db = getArticlesDb()
+    db.prepare('DELETE FROM articles WHERE id=?').run(req.params.id)
+    db.close()
+    res.json({ message: '删除成功' })
+  } catch (e) {
+    res.status(500).json({ error: e.message })
+  }
+})
+
 const PORT = 3001
 
 // 启动时初始化 ClawHub 数据库
