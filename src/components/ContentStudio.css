@@ -1,22 +1,27 @@
-/* ── 图文制作 · 左右分栏 + 状态Tab + 内联编辑 ──────────── */
+/* ── 图文制作 · 重构版 ─────────────────────────────────── */
 
 .content-studio {
   display: flex;
   height: calc(100vh - 56px);
   overflow: hidden;
+  font-family: 'SF Pro Display', -apple-system, 'PingFang SC', sans-serif;
 }
 
-/* ── 左侧面板 ── */
-.cs-panel-left {
-  width: 360px;
-  min-width: 300px;
+/* ══════════════════════════════════════
+   左侧面板
+══════════════════════════════════════ */
+
+.cs-left {
+  width: 340px;
+  min-width: 280px;
   display: flex;
   flex-direction: column;
-  border-right: 1px solid rgba(255,255,255,0.06);
-  background: #131924;
+  border-right: 1px solid rgba(255,255,255,0.055);
+  background: #111827;
+  overflow: hidden;
 }
 
-.cs-panel-header {
+.cs-left-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -25,190 +30,168 @@
   flex-shrink: 0;
 }
 
-.cs-panel-header h2 {
-  font-size: 17px;
+.cs-left-title {
+  font-size: 16px;
   font-weight: 700;
   color: #e2e8f0;
-  margin: 0;
-  letter-spacing: -0.3px;
+  letter-spacing: -0.2px;
 }
 
-/* ── 状态 Tab ── */
-.cs-status-tabs {
+/* 状态 Tab */
+.cs-tabs {
   display: flex;
   gap: 2px;
-  padding: 10px 12px 6px;
+  padding: 8px 12px 6px;
   flex-shrink: 0;
 }
 
-.cs-status-tab {
+.cs-tab {
   flex: 1;
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 5px;
-  padding: 5px 4px;
+  gap: 4px;
+  padding: 5px 2px;
   background: transparent;
-  border: 1px solid transparent;
+  border: none;
   border-radius: 7px;
-  color: #475569;
+  color: #374151;
   font-size: 12px;
   font-weight: 500;
   cursor: pointer;
-  transition: all 0.15s ease;
-  white-space: nowrap;
+  transition: all 0.15s;
 }
 
-.cs-status-tab:hover { color: #94a3b8; background: rgba(255,255,255,0.04); }
+.cs-tab:hover { color: #6b7280; background: rgba(255,255,255,0.04); }
 
-.cs-status-tab-active {
-  background: rgba(255,255,255,0.07) !important;
-  border-color: rgba(255,255,255,0.09) !important;
-  color: var(--tab-color, #e2e8f0) !important;
+.cs-tab-on {
+  background: rgba(255,255,255,0.08) !important;
+  color: #9ca3af !important;
 }
 
-.cs-tab-dot {
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  flex-shrink: 0;
-}
-
-.cs-tab-count {
-  background: rgba(255,255,255,0.08);
+.cs-tab-n {
+  font-size: 10px;
+  font-weight: 700;
+  background: rgba(255,255,255,0.07);
   padding: 0 5px;
   border-radius: 10px;
-  font-size: 10.5px;
-  font-weight: 700;
-  min-width: 18px;
+  min-width: 16px;
   text-align: center;
+  color: #4b5563;
 }
 
-.cs-status-tab-active .cs-tab-count {
-  background: rgba(255,255,255,0.12);
-}
-
-/* ── 搜索 ── */
-.cs-search-bar {
+/* 搜索 */
+.cs-search {
   position: relative;
   padding: 0 12px 8px;
   flex-shrink: 0;
 }
 
-.cs-search-icon {
+.cs-search-ico {
   position: absolute;
-  left: 22px;
+  left: 21px;
   top: 50%;
   transform: translateY(-60%);
-  color: #475569;
+  color: #374151;
   pointer-events: none;
 }
 
-.cs-search-input {
+.cs-search-in {
   width: 100%;
   background: rgba(255,255,255,0.04);
   border: 1px solid rgba(255,255,255,0.07);
   border-radius: 8px;
-  padding: 7px 12px 7px 32px;
-  color: #e2e8f0;
-  font-size: 13px;
+  padding: 6px 10px 6px 30px;
+  color: #9ca3af;
+  font-size: 12.5px;
   box-sizing: border-box;
-  transition: border-color 0.2s, box-shadow 0.2s;
+  transition: border-color 0.2s;
 }
 
-.cs-search-input::placeholder { color: #475569; }
-.cs-search-input:focus {
-  outline: none;
-  border-color: #6366f1;
-  box-shadow: 0 0 0 3px rgba(99,102,241,0.12);
-}
+.cs-search-in::placeholder { color: #374151; }
+.cs-search-in:focus { outline: none; border-color: #6366f1; }
 
-/* ── 文章列表 ── */
-.cs-article-list {
+/* 列表 */
+.cs-list {
   flex: 1;
   overflow-y: auto;
-  padding: 4px 10px 16px;
+  padding: 4px 10px 20px;
 }
 
-.cs-article-list::-webkit-scrollbar { width: 4px; }
-.cs-article-list::-webkit-scrollbar-thumb { background: #1e2d3d; border-radius: 4px; }
+.cs-list::-webkit-scrollbar { width: 3px; }
+.cs-list::-webkit-scrollbar-thumb { background: #1f2937; border-radius: 4px; }
 
-.cs-loading, .cs-list-empty {
+.cs-list-tip {
   text-align: center;
-  padding: 40px 20px;
-  color: #2d3a4d;
+  padding: 48px 20px;
+  color: #1f2937;
   font-size: 13px;
 }
 
-.cs-list-empty p { margin: 0; color: #2d3a4d; }
-
-/* ── 列表项 ── */
-.cs-article-item {
+/* 列表项 */
+.cs-item {
   background: rgba(255,255,255,0.02);
-  border: 1px solid rgba(255,255,255,0.05);
+  border: 1px solid rgba(255,255,255,0.045);
   border-radius: 10px;
   padding: 11px 13px;
-  margin-bottom: 6px;
+  margin-bottom: 5px;
   cursor: pointer;
-  transition: all 0.16s ease;
+  transition: all 0.15s;
   position: relative;
-  overflow: hidden;
 }
 
-.cs-article-item::before {
-  content: '';
-  position: absolute;
-  left: 0; top: 0; bottom: 0;
-  width: 0;
-  background: var(--item-accent, #6366f1);
-  border-radius: 2px 0 0 2px;
-  transition: width 0.16s ease;
-}
-
-.cs-article-item:hover {
-  background: rgba(255,255,255,0.05);
+.cs-item:hover {
+  background: rgba(255,255,255,0.055);
   border-color: rgba(255,255,255,0.1);
-  transform: translateX(2px);
 }
 
-.cs-article-item:hover::before { width: 3px; }
-
-.cs-article-item-active {
+.cs-item-on {
   background: rgba(99,102,241,0.1) !important;
   border-color: rgba(99,102,241,0.35) !important;
 }
 
-.cs-article-item-active::before { width: 3px !important; }
-
-.cs-item-row1 {
+.cs-item-head {
   display: flex;
-  justify-content: space-between;
   align-items: center;
+  gap: 6px;
   margin-bottom: 6px;
 }
 
-.cs-item-title {
-  font-size: 13.5px;
+.cs-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  margin-left: auto;
+}
+
+.cs-item-st {
+  font-size: 10.5px;
   font-weight: 600;
-  color: #cbd5e1;
+}
+
+.cs-item-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: #6b7280;
   margin-bottom: 5px;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  padding-left: 2px;
+  letter-spacing: -0.1px;
 }
 
-.cs-article-item-active .cs-item-title { color: #e2e8f0; }
+.cs-item-on .cs-item-title,
+.cs-item:hover .cs-item-title { color: #d1d5db; }
 
-.cs-item-meta {
-  font-size: 11px;
-  color: #3d4f63;
+.cs-item-foot {
   display: flex;
   gap: 10px;
-  padding-left: 2px;
+  font-size: 10.5px;
+  color: #374151;
 }
 
-.cs-item-meta span {
+.cs-item-ai {
   display: inline-flex;
   align-items: center;
   gap: 3px;
@@ -216,314 +199,319 @@
 
 .cs-item-tags {
   display: flex;
-  gap: 5px;
+  gap: 4px;
   flex-wrap: wrap;
   margin-top: 7px;
 }
 
-/* ── 标签 & 徽章 ── */
-.cs-tag {
-  font-size: 10.5px;
-  background: rgba(99,102,241,0.1);
-  color: #818cf8;
-  padding: 1px 7px;
-  border-radius: 20px;
-  font-weight: 500;
-}
+/* ══════════════════════════════════════
+   右侧通用
+══════════════════════════════════════ */
 
-.cs-platform-pill {
-  font-size: 10.5px;
-  font-weight: 700;
-  padding: 2px 8px;
-  border-radius: 5px;
-  letter-spacing: 0.3px;
-  text-transform: uppercase;
-}
-
-.cs-status-pill {
-  font-size: 11px;
-  font-weight: 600;
-  padding: 2px 8px;
-  border-radius: 20px;
-  display: inline-flex;
-  align-items: center;
-}
-
-/* ── 右侧面板 ── */
-.cs-panel-right {
+.cs-right {
   flex: 1;
   overflow: hidden;
-  background: #0d1117;
+  background: #080c12;
   display: flex;
   flex-direction: column;
 }
 
-/* ── 阅读模式 ── */
-.cs-reader {
+/* 空白状态 */
+.cs-blank {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  color: #1a2332;
+  gap: 12px;
+}
+
+.cs-blank p { font-size: 14px; color: #1a2332; margin: 0; }
+
+/* ══════════════════════════════════════
+   阅读模式
+══════════════════════════════════════ */
+
+.cs-read {
   display: flex;
   flex-direction: column;
   height: 100%;
   overflow: hidden;
 }
 
-.cs-reader-topbar {
+/* 顶部操作栏 */
+.cs-read-bar {
   display: flex;
   align-items: center;
-  justify-content: flex-end;
-  gap: 8px;
-  padding: 14px 28px;
+  justify-content: space-between;
+  padding: 14px 36px;
   border-bottom: 1px solid rgba(255,255,255,0.04);
   flex-shrink: 0;
-  background: #0d1117;
+  background: #080c12;
 }
 
-.cs-reader-body {
+.cs-read-bar-l, .cs-read-bar-r {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* 文章内容区（居中） */
+.cs-article {
   flex: 1;
   overflow-y: auto;
-  padding: 28px 36px 48px;
-  max-width: 800px;
-  margin: 0 auto;
+  padding: 40px 0 80px;
+  max-width: 700px;
   width: 100%;
+  margin: 0 auto;
 }
 
-.cs-reader-body::-webkit-scrollbar { width: 5px; }
-.cs-reader-body::-webkit-scrollbar-thumb { background: #1e2d3d; border-radius: 4px; }
+.cs-article::-webkit-scrollbar { width: 5px; }
+.cs-article::-webkit-scrollbar-thumb { background: #111827; border-radius: 4px; }
 
-.cs-reader-chips {
-  display: flex;
-  gap: 8px;
-  align-items: center;
-  margin-bottom: 14px;
-}
-
-.cs-reader-title {
-  font-size: 24px;
+.cs-article-title {
+  font-size: 26px;
   font-weight: 800;
-  color: #f1f5f9;
-  margin: 0 0 14px;
-  letter-spacing: -0.5px;
+  color: #f3f4f6;
+  margin: 0 0 18px;
+  letter-spacing: -0.6px;
   line-height: 1.3;
 }
 
-.cs-reader-meta {
+.cs-article-meta {
   display: flex;
   gap: 18px;
   flex-wrap: wrap;
-  color: #475569;
   font-size: 12.5px;
-  margin-bottom: 12px;
+  color: #4b5563;
+  margin-bottom: 14px;
 }
 
-.cs-reader-meta span {
+.cs-article-meta span {
   display: inline-flex;
   align-items: center;
   gap: 4px;
 }
 
-.cs-reader-tags {
+.cs-article-tag-row {
   display: flex;
   gap: 6px;
-  flex-wrap: wrap;
   align-items: center;
-  color: #475569;
-  margin-bottom: 20px;
-}
-
-/* ── 阅读区各区块 ── */
-.cs-reader-section {
+  flex-wrap: wrap;
   margin-bottom: 24px;
 }
 
-.cs-section-label {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 11px;
-  font-weight: 700;
-  color: #2d3a4d;
-  text-transform: uppercase;
-  letter-spacing: 0.7px;
-  margin-bottom: 10px;
-  padding-bottom: 8px;
-  border-bottom: 1px solid rgba(255,255,255,0.04);
-}
-
-.cs-reader-summary {
+.cs-article-sum {
   background: rgba(99,102,241,0.06);
-  border: 1px solid rgba(99,102,241,0.1);
   border-left: 3px solid #6366f1;
-  border-radius: 10px;
+  border-radius: 0 10px 10px 0;
   padding: 14px 18px;
+  margin-bottom: 28px;
 }
 
-.cs-reader-summary p {
+.cs-article-sum-lbl {
+  font-size: 10.5px;
+  font-weight: 700;
+  color: #6366f1;
+  letter-spacing: 0.8px;
+  text-transform: uppercase;
+  margin-bottom: 7px;
+}
+
+.cs-article-sum p {
   margin: 0;
   font-size: 13.5px;
-  color: #94a3b8;
+  color: #8b949e;
   line-height: 1.8;
 }
 
-.cs-reader-content {
-  font-size: 14px;
-  color: #94a3b8;
-  line-height: 1.9;
+.cs-article-body-lbl {
+  font-size: 10.5px;
+  font-weight: 700;
+  color: #1f2937;
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  margin-bottom: 12px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid rgba(255,255,255,0.04);
+}
+
+.cs-article-body {
+  margin-bottom: 28px;
+}
+
+.cs-article-text {
+  font-size: 15px;
+  color: #9ca3af;
+  line-height: 1.95;
   white-space: pre-wrap;
   word-break: break-word;
+}
+
+.cs-article-link {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 16px 20px;
   background: rgba(255,255,255,0.02);
   border: 1px solid rgba(255,255,255,0.05);
   border-radius: 10px;
-  padding: 22px 26px;
-}
-
-.cs-reader-path {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  color: #475569;
+  color: #4b5563;
   font-size: 13px;
-  padding: 14px 18px;
-  background: rgba(255,255,255,0.02);
-  border: 1px solid rgba(255,255,255,0.05);
-  border-radius: 8px;
 }
 
-.cs-reader-path code {
-  background: rgba(255,255,255,0.06);
+.cs-article-link code {
+  background: rgba(99,102,241,0.1);
+  color: #818cf8;
   padding: 3px 8px;
   border-radius: 5px;
-  color: #818cf8;
   font-size: 12px;
 }
 
-.cs-reader-empty-content {
-  color: #2d3a4d;
-  font-size: 13px;
-  padding: 24px 0;
+.cs-article-empty {
   text-align: center;
+  padding: 48px;
+  color: #111827;
+  font-size: 14px;
+  border: 1px dashed rgba(255,255,255,0.04);
+  border-radius: 10px;
 }
 
-.cs-reader-remark {
+.cs-article-note {
   background: rgba(245,158,11,0.05);
-  border: 1px solid rgba(245,158,11,0.1);
   border-left: 3px solid #f59e0b;
-  border-radius: 8px;
+  border-radius: 0 8px 8px 0;
   padding: 12px 16px;
 }
 
-.cs-reader-remark .cs-section-label { color: #f59e0b; }
-.cs-reader-remark p { margin: 0; font-size: 13px; color: #64748b; line-height: 1.7; }
+.cs-note-lbl {
+  font-size: 11px;
+  font-weight: 700;
+  color: #f59e0b;
+  margin-bottom: 6px;
+  letter-spacing: 0.3px;
+}
 
-/* ── 编辑器 ── */
-.cs-editor {
+.cs-article-note p {
+  margin: 0;
+  font-size: 13px;
+  color: #6b7280;
+  line-height: 1.7;
+}
+
+/* ══════════════════════════════════════
+   编辑模式
+══════════════════════════════════════ */
+
+.cs-edit {
   display: flex;
   flex-direction: column;
   height: 100%;
   overflow: hidden;
 }
 
-.cs-editor-topbar {
+/* 编辑器顶部栏 */
+.cs-edit-bar {
   display: flex;
   align-items: center;
   justify-content: space-between;
   padding: 12px 24px;
   border-bottom: 1px solid rgba(255,255,255,0.05);
   flex-shrink: 0;
-  background: #0d1117;
+  background: #080c12;
 }
 
-.cs-editor-topbar-actions {
+.cs-edit-bar-r {
   display: flex;
+  align-items: center;
   gap: 8px;
 }
 
-.cs-editor-body {
+/* 编辑区（可滚动） */
+.cs-edit-body {
   flex: 1;
   overflow-y: auto;
-  padding: 24px 32px 48px;
-  max-width: 800px;
+  padding: 28px 36px 80px;
+  max-width: 700px;
   width: 100%;
   margin: 0 auto;
 }
 
-.cs-editor-body::-webkit-scrollbar { width: 5px; }
-.cs-editor-body::-webkit-scrollbar-thumb { background: #1e2d3d; border-radius: 4px; }
+.cs-edit-body::-webkit-scrollbar { width: 5px; }
+.cs-edit-body::-webkit-scrollbar-thumb { background: #111827; border-radius: 4px; }
 
-/* 平台+状态芯片行 */
-.cs-editor-chips {
+/* 平台/状态 芯片 */
+.cs-edit-chips {
   display: flex;
   flex-direction: column;
   gap: 10px;
   margin-bottom: 20px;
 }
 
-.cs-chip-group {
+.cs-chip-row {
   display: flex;
   align-items: center;
   gap: 6px;
   flex-wrap: wrap;
 }
 
-.cs-chip-label {
-  font-size: 11px;
+.cs-chip-hdr {
+  font-size: 10.5px;
   font-weight: 700;
-  color: #2d3a4d;
+  color: #1f2937;
   text-transform: uppercase;
-  letter-spacing: 0.5px;
-  margin-right: 2px;
+  letter-spacing: 0.6px;
   min-width: 28px;
 }
 
 .cs-chip {
-  padding: 4px 11px;
+  padding: 4px 12px;
   border-radius: 20px;
-  border: 1px solid rgba(255,255,255,0.08);
-  background: rgba(255,255,255,0.04);
-  color: #475569;
+  border: 1px solid rgba(255,255,255,0.07);
+  background: rgba(255,255,255,0.03);
+  color: #374151;
   font-size: 12px;
   font-weight: 500;
   cursor: pointer;
   transition: all 0.15s;
 }
 
-.cs-chip:hover { border-color: rgba(255,255,255,0.15); color: #94a3b8; }
+.cs-chip:hover { border-color: rgba(255,255,255,0.14); color: #6b7280; }
+.cs-chip-on { font-weight: 600; }
 
-.cs-chip-active { font-weight: 600; }
-
-/* 标题输入 */
-.cs-editor-title {
+/* 标题 */
+.cs-edit-title {
   width: 100%;
   background: transparent;
   border: none;
-  border-bottom: 2px solid rgba(255,255,255,0.08);
+  border-bottom: 2px solid rgba(255,255,255,0.07);
   border-radius: 0;
   padding: 10px 0;
-  color: #f1f5f9;
-  font-size: 24px;
+  color: #f3f4f6;
+  font-size: 26px;
   font-weight: 800;
-  letter-spacing: -0.4px;
-  margin-bottom: 16px;
+  letter-spacing: -0.6px;
   box-sizing: border-box;
+  margin-bottom: 16px;
   transition: border-color 0.2s;
 }
 
-.cs-editor-title::placeholder { color: #1e2d3d; }
-.cs-editor-title:focus {
-  outline: none;
-  border-bottom-color: #6366f1;
-}
+.cs-edit-title::placeholder { color: #1a2332; }
+.cs-edit-title:focus { outline: none; border-bottom-color: #6366f1; }
 
-/* 元信息行 */
-.cs-editor-meta-row {
+/* 元信息一行 */
+.cs-edit-meta {
   display: flex;
-  gap: 12px;
+  gap: 8px;
   flex-wrap: wrap;
   align-items: center;
-  margin-bottom: 20px;
   padding-bottom: 16px;
-  border-bottom: 1px solid rgba(255,255,255,0.05);
+  border-bottom: 1px solid rgba(255,255,255,0.04);
+  margin-bottom: 20px;
 }
 
-.cs-meta-field {
+.cs-meta-in {
   display: flex;
   align-items: center;
   gap: 6px;
@@ -532,58 +520,84 @@
   border-radius: 8px;
   padding: 6px 10px;
   flex: 1;
-  min-width: 120px;
+  min-width: 110px;
 }
 
-.cs-meta-field-tags { flex: 2; }
+.cs-meta-in-lg { flex: 2; }
 
-.cs-meta-icon { color: #2d3a4d; flex-shrink: 0; }
+.cs-meta-ico { color: #1f2937; flex-shrink: 0; }
 
-.cs-meta-input {
+.cs-meta-line {
   background: transparent;
   border: none;
-  color: #94a3b8;
+  color: #8b949e;
   font-size: 12.5px;
   width: 100%;
   min-width: 0;
 }
 
-.cs-meta-input:focus { outline: none; }
-.cs-meta-input::placeholder { color: #2d3a4d; }
+.cs-meta-line:focus { outline: none; }
+.cs-meta-line::placeholder { color: #1f2937; }
 
 /* 编辑区块 */
-.cs-editor-section {
-  margin-bottom: 20px;
+.cs-edit-section { margin-bottom: 20px; }
+
+.cs-s-lbl {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 10.5px;
+  font-weight: 700;
+  color: #1f2937;
+  text-transform: uppercase;
+  letter-spacing: 0.7px;
+  margin-bottom: 9px;
 }
 
-.cs-editor-textarea {
+.cs-wc {
+  font-size: 10px;
+  color: #374151;
+  font-weight: 400;
+  letter-spacing: 0;
+  text-transform: none;
+  margin-left: 4px;
+}
+
+/* textarea */
+.cs-ta {
   width: 100%;
   background: rgba(255,255,255,0.025);
   border: 1px solid rgba(255,255,255,0.07);
   border-radius: 10px;
   padding: 14px 16px;
-  color: #94a3b8;
-  font-size: 13.5px;
-  line-height: 1.75;
+  color: #9ca3af;
+  font-size: 14px;
+  line-height: 1.8;
   resize: vertical;
   box-sizing: border-box;
-  transition: border-color 0.2s, box-shadow 0.2s;
   font-family: inherit;
+  transition: border-color 0.2s, box-shadow 0.2s;
 }
 
-.cs-editor-textarea:focus {
+.cs-ta:focus {
   outline: none;
   border-color: #6366f1;
   box-shadow: 0 0 0 3px rgba(99,102,241,0.1);
 }
 
-.cs-editor-textarea::placeholder { color: #2d3a4d; }
+.cs-ta::placeholder { color: #1f2937; }
 
-.cs-editor-content { min-height: 300px; }
-.cs-editor-summary  { min-height: 80px; }
-.cs-editor-remark   { min-height: 64px; }
+.cs-ta-sum  { min-height: 80px; }
+.cs-ta-note { min-height: 64px; }
 
-.cs-editor-path-input {
+.cs-ta-body {
+  min-height: 360px;
+  font-size: 15px;
+  line-height: 1.95;
+}
+
+/* 文件路径 */
+.cs-path-in {
   width: 100%;
   background: rgba(255,255,255,0.025);
   border: 1px solid rgba(255,255,255,0.07);
@@ -595,74 +609,136 @@
   transition: border-color 0.2s;
 }
 
-.cs-editor-path-input:focus {
+.cs-path-in:focus {
   outline: none;
   border-color: #6366f1;
   box-shadow: 0 0 0 3px rgba(99,102,241,0.1);
 }
 
-.cs-editor-path-input::placeholder { color: #2d3a4d; }
+.cs-path-in::placeholder { color: #1f2937; }
 
-/* ── 空状态 ── */
-.cs-empty-state {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  height: 100%;
-  color: #1e2d3d;
-  gap: 10px;
-  text-align: center;
+/* ══════════════════════════════════════
+   通用组件
+══════════════════════════════════════ */
+
+/* 徽章 */
+.cs-badge {
+  font-size: 10px;
+  font-weight: 800;
+  padding: 2px 7px;
+  border-radius: 4px;
+  letter-spacing: 0.4px;
+  text-transform: uppercase;
 }
 
-.cs-empty-state p { margin: 0; }
-.cs-empty-title { font-size: 15px; font-weight: 600; color: #2d3a4d; margin-top: 8px; }
-.cs-empty-desc  { font-size: 13px; color: #1e2d3d; }
+.cs-st-badge {
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 20px;
+}
+
+/* 标签 */
+.cs-mini-tag {
+  font-size: 10px;
+  background: rgba(99,102,241,0.08);
+  color: #6366f1;
+  padding: 1px 6px;
+  border-radius: 20px;
+  font-weight: 500;
+}
+
+.cs-tagger {
+  font-size: 11px;
+  background: rgba(99,102,241,0.08);
+  color: #6366f1;
+  padding: 2px 8px;
+  border-radius: 20px;
+  font-weight: 500;
+}
 
 /* ── 按钮 ── */
-.cs-btn {
-  padding: 7px 15px;
-  border-radius: 8px;
-  border: none;
-  font-size: 13px;
-  font-weight: 500;
-  cursor: pointer;
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  transition: all 0.16s ease;
-  white-space: nowrap;
-}
+button { cursor: pointer; }
+button:disabled { opacity: 0.4; cursor: not-allowed; }
 
-.cs-btn:disabled { opacity: 0.45; cursor: not-allowed; }
-
-.cs-btn-sm { padding: 5px 11px; font-size: 12px; }
-
-.cs-btn-primary {
+.cs-btn-primary-sm {
   background: linear-gradient(135deg, #6366f1, #8b5cf6);
   color: #fff;
-  box-shadow: 0 2px 10px rgba(99,102,241,0.3);
-}
-.cs-btn-primary:hover:not(:disabled) {
-  box-shadow: 0 4px 16px rgba(99,102,241,0.45);
-  transform: translateY(-1px);
-}
-
-.cs-btn-ghost {
-  background: rgba(255,255,255,0.05);
-  color: #64748b;
-  border: 1px solid rgba(255,255,255,0.08);
-}
-.cs-btn-ghost:hover:not(:disabled) {
-  background: rgba(255,255,255,0.08);
-  color: #94a3b8;
+  border: none;
+  border-radius: 8px;
+  padding: 5px 12px;
+  font-size: 12px;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  transition: all 0.15s;
+  box-shadow: 0 2px 8px rgba(99,102,241,0.3);
 }
 
-.cs-btn-danger-ghost {
+.cs-btn-primary-sm:hover { box-shadow: 0 4px 14px rgba(99,102,241,0.45); transform: translateY(-1px); }
+
+.cs-btn-ghost-sm {
+  background: rgba(255,255,255,0.04);
+  color: #4b5563;
+  border: 1px solid rgba(255,255,255,0.07);
+  border-radius: 7px;
+  padding: 5px 11px;
+  font-size: 12px;
+  font-weight: 500;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  transition: all 0.15s;
+}
+
+.cs-btn-ghost-sm:hover { background: rgba(255,255,255,0.07); color: #9ca3af; }
+
+.cs-btn-edit {
+  background: rgba(99,102,241,0.12);
+  color: #818cf8;
+  border: 1px solid rgba(99,102,241,0.2);
+  border-radius: 7px;
+  padding: 5px 13px;
+  font-size: 12.5px;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  transition: all 0.15s;
+}
+
+.cs-btn-edit:hover { background: rgba(99,102,241,0.2); }
+
+.cs-btn-del-sm {
   background: rgba(239,68,68,0.08);
   color: #f87171;
   border: 1px solid rgba(239,68,68,0.15);
+  border-radius: 7px;
+  padding: 5px 11px;
+  font-size: 12px;
+  font-weight: 500;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  transition: all 0.15s;
 }
-.cs-btn-danger-ghost:hover:not(:disabled) {
-  background: rgba(239,68,68,0.15);
+
+.cs-btn-del-sm:hover:not(:disabled) { background: rgba(239,68,68,0.15); }
+
+.cs-btn-pub {
+  background: linear-gradient(135deg, #6366f1, #8b5cf6);
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  padding: 7px 16px;
+  font-size: 13px;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  box-shadow: 0 2px 10px rgba(99,102,241,0.3);
+  transition: all 0.15s;
 }
+
+.cs-btn-pub:hover:not(:disabled) { box-shadow: 0 4px 16px rgba(99,102,241,0.45); transform: translateY(-1px); }
