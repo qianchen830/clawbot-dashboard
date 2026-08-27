@@ -1,58 +1,46 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import {
   Plus, Search, Edit2, Trash2, X, FileText, BookOpen,
-  Clock, Tag, User, Link as LinkIcon, CheckCircle, Eye, Send, ChevronLeft
+  Clock, Tag, User, Link as LinkIcon, Send, ChevronLeft,
+  CheckCircle, AlertCircle, Globe, FileText as FileIcon
 } from 'lucide-react'
 import './ContentStudio.css'
 
 const API = ''
 
-const STATUS_MAP = {
-  draft:     { label: '草稿',   color: '#64748b' },
-  review:    { label: '待审核', color: '#f59e0b' },
-  published: { label: '已发布', color: '#10b981' },
-  rejected:  { label: '已驳回', color: '#ef4444' },
+const STATUS = {
+  draft:     { label: '草稿',     color: '#64748b', bg: '#64748b20' },
+  review:    { label: '待审核',   color: '#f59e0b', bg: '#f59e0b20' },
+  published: { label: '已发布',   color: '#10b981', bg: '#10b98120' },
+  rejected:  { label: '已驳回',   color: '#ef4444', bg: '#ef444420' },
 }
 
-const PLATFORM_MAP = {
-  wechat:      { label: '公众号',   bg: 'rgba(7,193,96,0.18)',   color: '#34d399' },
-  xiaohongshu: { label: '小红书',   bg: 'rgba(254,44,85,0.18)',  color: '#fb7185' },
-  douyin:      { label: '抖音',     bg: 'rgba(0,242,234,0.12)',  color: '#5eead4' },
-  other:       { label: '其他',     bg: 'rgba(99,102,241,0.15)', color: '#a5b4fc' },
+const PLATFORM = {
+  wechat:      { label: '公众号',   color: '#34d399', bg: '#34d39920' },
+  xiaohongshu: { label: '小红书',   color: '#fb7185', bg: '#fb718520' },
+  douyin:      { label: '抖音',     color: '#5eead4', bg: '#5eead420' },
+  other:       { label: '其他',     color: '#a5b4fc', bg: '#a5b4fc20' },
 }
+
+const STATUS_TABS = [
+  { key: 'all',       label: '全部' },
+  { key: 'draft',     label: '草稿' },
+  { key: 'review',    label: '待审核' },
+  { key: 'published', label: '已发布' },
+]
 
 // ── API ─────────────────────────────────────────────────────────────────────
 
-async function fetchArticles(params = {}) {
-  const qs = new URLSearchParams(params).toString()
-  const res = await fetch(`${API}/api/content/articles${qs ? '?' + qs : ''}`)
-  if (!res.ok) throw new Error('获取失败')
-  return res.json()
+async function req(path, opts = {}) {
+  const r = await fetch(`${API}${path}`, { headers: { 'content-type': 'application/json' }, ...opts })
+  if (!r.ok) throw new Error(`请求失败: ${r.status}`)
+  return r.json()
 }
 
-async function createArticle(data) {
-  const res = await fetch(`${API}/api/content/articles`, {
-    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data),
-  })
-  if (!res.ok) throw new Error('创建失败')
-  return res.json()
-}
-
-async function updateArticle(id, data) {
-  const res = await fetch(`${API}/api/content/articles/${id}`, {
-    method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data),
-  })
-  if (!res.ok) throw new Error('更新失败')
-  return res.json()
-}
-
-async function deleteArticle(id) {
-  const res = await fetch(`${API}/api/content/articles/${id}`, { method: 'DELETE' })
-  if (!res.ok) throw new Error('删除失败')
-  return res.json()
-}
-
-// ── Toast ───────────────────────────────────────────────────────────────────
+const fetchArticles = () => req('/api/content/articles')
+const createArticle = d => req('/api/content/articles', { method: 'POST', body: JSON.stringify(d) })
+const updateArticle = (id, d) => req(`/api/content/articles/${id}`, { method: 'PUT', body: JSON.stringify(d) })
+const deleteArticle = id => req(`/api/content/articles/${id}`, { method: 'DELETE' })
 
 function toast(msg) {
   const t = document.getElementById('toast')
@@ -62,102 +50,173 @@ function toast(msg) {
   setTimeout(() => { t.style.transform = 'translateX(-50%) translateY(100px)' }, 3000)
 }
 
-function fmtDate(iso) {
-  if (!iso) return '-'
-  const d = new Date(iso)
-  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`
+function fmt(ts) {
+  if (!ts) return '-'
+  const d = new Date(ts)
+  return `${d.getFullYear()}.${String(d.getMonth()+1).padStart(2,'0')}.${String(d.getDate()).padStart(2,'0')} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`
 }
 
-// ── 状态 Tab 导航 ────────────────────────────────────────────────────────────
+function wordCount(text) {
+  if (!text) return 0
+  return text.trim().split(/\s+/).filter(Boolean).length
+}
 
-const STATUS_TABS = [
-  { key: 'all',      label: '全部' },
-  { key: 'draft',    label: '草稿' },
-  { key: 'review',   label: '待审核' },
-  { key: 'published',label: '已发布' },
-]
+// ── 左侧：状态 Tab + 列表 ───────────────────────────────────────────────────
 
-function StatusTabs({ filterStatus, onChange, counts }) {
+function LeftPanel({ articles, loading, search, setSearch, tab, setTab, selected, onSelect, onNew }) {
+  const filtered = articles.filter(a => {
+    const hit = !search ||
+      a.title?.includes(search) || a.tags?.includes(search) || a.summary?.includes(search)
+    const ok = tab === 'all' || a.status === tab
+    return hit && ok
+  })
+
+  const counts = {
+    draft:    articles.filter(a => a.status === 'draft').length,
+    review:   articles.filter(a => a.status === 'review').length,
+    published:articles.filter(a => a.status === 'published').length,
+  }
+
   return (
-    <div className="cs-status-tabs">
-      {STATUS_TABS.map(tab => {
-        const count = tab.key === 'all'
-          ? Object.values(counts).reduce((a, b) => a + b, 0)
-          : (counts[tab.key] || 0)
-        const sm = STATUS_MAP[tab.key]
-        return (
-          <button
-            key={tab.key}
-            className={`cs-status-tab ${filterStatus === tab.key ? 'cs-status-tab-active' : ''}`}
-            style={filterStatus === tab.key && sm ? { '--tab-color': sm.color } : {}}
-            onClick={() => onChange(tab.key)}
-          >
-            {tab.key !== 'all' && sm && (
-              <span className="cs-tab-dot" style={{ background: sm.color }} />
-            )}
-            {tab.label}
-            {count > 0 && <span className="cs-tab-count">{count}</span>}
-          </button>
-        )
-      })}
+    <div className="cs-left">
+      <div className="cs-left-header">
+        <span className="cs-left-title">📝 图文制作</span>
+        <button className="cs-btn-primary-sm" onClick={onNew}>+ 新建</button>
+      </div>
+
+      <div className="cs-tabs">
+        {STATUS_TABS.map(t => {
+          const n = t.key === 'all' ? articles.length : (counts[t.key] || 0)
+          return (
+            <button key={t.key} className={`cs-tab ${tab === t.key ? 'cs-tab-on' : ''}`} onClick={() => setTab(t.key)}>
+              {t.label}
+              {n > 0 && <span className="cs-tab-n">{n}</span>}
+            </button>
+          )
+        })}
+      </div>
+
+      <div className="cs-search">
+        <Search size={12} className="cs-search-ico" />
+        <input value={search} onChange={e => setSearch(e.target.value)} placeholder="搜索标题、标签..." className="cs-search-in" />
+      </div>
+
+      <div className="cs-list">
+        {loading ? (
+          <div className="cs-list-tip">⏳ 加载中...</div>
+        ) : filtered.length === 0 ? (
+          <div className="cs-list-tip">暂无文章</div>
+        ) : filtered.map(a => (
+          <ListItem key={a.id} article={a} active={selected?.id === a.id} onSelect={onSelect} />
+        ))}
+      </div>
     </div>
   )
 }
 
-// ── 搜索栏 ──────────────────────────────────────────────────────────────────
-
-function SearchBar({ value, onChange }) {
+function ListItem({ article, active, onSelect }) {
+  const st = STATUS[article.status] || STATUS.draft
+  const pl = PLATFORM[article.platform] || PLATFORM.other
   return (
-    <div className="cs-search-bar">
-      <Search size={13} className="cs-search-icon" />
-      <input
-        type="text" placeholder="搜索标题 / 标签 / 摘要..."
-        value={value} onChange={e => onChange(e.target.value)}
-        className="cs-search-input"
-      />
-    </div>
-  )
-}
-
-// ── 文章列表项 ───────────────────────────────────────────────────────────────
-
-function ArticleItem({ article, selected, onSelect }) {
-  const pm = PLATFORM_MAP[article.platform] || PLATFORM_MAP.other
-  const sm = STATUS_MAP[article.status] || STATUS_MAP.draft
-  const isActive = selected?.id === article.id
-
-  return (
-    <div
-      className={`cs-article-item ${isActive ? 'cs-article-item-active' : ''}`}
-      onClick={() => onSelect(article)}
-      style={isActive ? { '--item-accent': sm.color } : {}}
-    >
-      <div className="cs-item-row1">
-        <span className="cs-platform-pill" style={{ background: pm.bg, color: pm.color }}>{pm.label}</span>
-        <span className="cs-status-pill" style={{ color: sm.color, background: sm.color + '18' }}>
-          <span style={{ width: 6, height: 6, borderRadius: '50%', background: sm.color, display: 'inline-block', marginRight: 4, boxShadow: `0 0 5px ${sm.color}90` }} />
-          {sm.label}
-        </span>
+    <div className={`cs-item ${active ? 'cs-item-on' : ''}`} onClick={() => onSelect(article)}>
+      <div className="cs-item-head">
+        <span className="cs-badge" style={{ color: pl.color, background: pl.bg }}>{pl.label}</span>
+        <span className="cs-dot" style={{ background: st.color, boxShadow: `0 0 6px ${st.color}90` }} />
+        <span className="cs-item-st" style={{ color: st.color }}>{st.label}</span>
       </div>
       <div className="cs-item-title">{article.title || '无标题'}</div>
-      <div className="cs-item-meta">
-        {article.author && <span><User size={10}/>{article.author}</span>}
-        <span><Clock size={10}/>{fmtDate(article.publish_time || article.created_at)}</span>
+      <div className="cs-item-foot">
+        {article.author && <span className="cs-item-ai"><User size={9}/>{article.author}</span>}
+        <span className="cs-item-ai"><Clock size={9}/>{fmt(article.publish_time || article.created_at)}</span>
       </div>
       {article.tags && (
         <div className="cs-item-tags">
-          {article.tags.split(',').filter(Boolean).slice(0, 3).map((t, i) => (
-            <span key={i} className="cs-tag">{t.trim()}</span>
-          ))}
+          {article.tags.split(',').filter(Boolean).slice(0,3).map((t,i) => <span key={i} className="cs-mini-tag">{t.trim()}</span>)}
         </div>
       )}
     </div>
   )
 }
 
-// ── 内联编辑器 ───────────────────────────────────────────────────────────────
+// ── 右侧：阅读模式 ──────────────────────────────────────────────────────────
 
-function ArticleEditor({ article, onSave, onCancel, onDelete, isNew }) {
+function ReadView({ article, onEdit, onNew }) {
+  const st = STATUS[article.status] || STATUS.draft
+  const pl = PLATFORM[article.platform] || PLATFORM.other
+  const wc = wordCount(article.content)
+
+  return (
+    <div className="cs-read">
+      {/* 顶部操作栏 */}
+      <div className="cs-read-bar">
+        <div className="cs-read-bar-l">
+          <span className="cs-badge" style={{ color: pl.color, background: pl.bg }}>{pl.label}</span>
+          <span className="cs-st-badge" style={{ color: st.color, background: st.bg }}>{st.label}</span>
+        </div>
+        <div className="cs-read-bar-r">
+          <button className="cs-btn-ghost-sm" onClick={onNew}>+ 新建</button>
+          <button className="cs-btn-edit" onClick={onEdit}>
+            <Edit2 size={12}/> 编辑
+          </button>
+        </div>
+      </div>
+
+      {/* 文章容器 */}
+      <div className="cs-article">
+        <h1 className="cs-article-title">{article.title || '无标题'}</h1>
+
+        <div className="cs-article-meta">
+          {article.author && <span><User size={11}/>{article.author}</span>}
+          <span><Clock size={11}/>{fmt(article.publish_time || article.created_at)}</span>
+          {wc > 0 && <span><FileIcon size={11}/>{wc} 字</span>}
+          {article.updated_at && <span>更新于 {fmt(article.updated_at)}</span>}
+        </div>
+
+        {article.tags && (
+          <div className="cs-article-tag-row">
+            <Tag size={10} style={{color:'#3d4f63'}}/>
+            {article.tags.split(',').filter(Boolean).map((t,i) => <span key={i} className="cs-tagger">{t.trim()}</span>)}
+          </div>
+        )}
+
+        {article.summary && (
+          <div className="cs-article-sum">
+            <div className="cs-article-sum-lbl">摘要</div>
+            <p>{article.summary}</p>
+          </div>
+        )}
+
+        <div className="cs-article-body-lbl">正文</div>
+        <div className="cs-article-body">
+          {article.content ? (
+            <div className="cs-article-text">{article.content}</div>
+          ) : article.content_path ? (
+            <div className="cs-article-link">
+              <Link as_={LinkIcon} size={13}/>
+              <code>{article.content_path}</code>
+            </div>
+          ) : (
+            <div className="cs-article-empty">暂无正文内容</div>
+          )}
+        </div>
+
+        {article.remark && (
+          <div className="cs-article-note">
+            <div className="cs-note-lbl">📋 备注</div>
+            <p>{article.remark}</p>
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
+// We need to alias Link since it's also a named export
+const Link = LinkIcon
+
+// ── 右侧：编辑模式 ──────────────────────────────────────────────────────────
+
+function EditView({ article, isNew, onSave, onCancel }) {
   const [form, setForm] = useState({
     title:       article?.title       || '',
     platform:    article?.platform    || 'wechat',
@@ -177,87 +236,67 @@ function ArticleEditor({ article, onSave, onCancel, onDelete, isNew }) {
   useEffect(() => { titleRef.current?.focus() }, [])
 
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }))
+  const wc = wordCount(form.content)
 
-  const handleSave = async () => {
-    if (!form.title.trim()) { toast('请填写标题'); titleRef.current?.focus(); return }
+  const save = async () => {
+    if (!form.title.trim()) { toast('标题不能为空'); titleRef.current?.focus(); return }
     setSaving(true)
     try {
-      const payload = {
-        ...form,
-        tags: form.tags.split(',').map(t => t.trim()).filter(Boolean).join(','),
-      }
+      const payload = { ...form, tags: form.tags.split(',').map(t => t.trim()).filter(Boolean).join(',') }
       if (isNew) { await createArticle(payload); toast('创建成功') }
       else       { await updateArticle(article.id, payload); toast('保存成功') }
       onSave()
-    } catch (e) {
-      toast(e.message)
-    } finally {
-      setSaving(false)
-    }
+    } catch (e) { toast(e.message) }
+    finally      { setSaving(false) }
   }
 
-  const handleDelete = async () => {
-    if (!confirm('确认删除这篇文章？')) return
+  const del = async () => {
+    if (!confirm('删除这篇文章？')) return
     setDeleting(true)
     try {
       await deleteArticle(article.id)
       toast('已删除')
-      onDelete()
-    } catch (e) {
-      toast(e.message)
-    } finally {
-      setDeleting(false)
-    }
+      onSave() // back to list
+    } catch (e) { toast(e.message); setDeleting(false) }
   }
 
-  const pm = PLATFORM_MAP[form.platform] || PLATFORM_MAP.other
-
   return (
-    <div className="cs-editor">
-      {/* 编辑器顶部工具栏 */}
-      <div className="cs-editor-topbar">
-        <button className="cs-btn cs-btn-ghost" onClick={onCancel}>
-          <ChevronLeft size={14}/> 返回列表
+    <div className="cs-edit">
+      {/* 顶部操作栏 */}
+      <div className="cs-edit-bar">
+        <button className="cs-btn-ghost-sm" onClick={onCancel}>
+          <ChevronLeft size={13}/> 返回
         </button>
-        <div className="cs-editor-topbar-actions">
+        <div className="cs-edit-bar-r">
           {!isNew && (
-            <button className="cs-btn cs-btn-danger-ghost" disabled={deleting} onClick={handleDelete}>
-              <Trash2 size={13}/> {deleting ? '删除中...' : '删除'}
+            <button className="cs-btn-del-sm" disabled={deleting} onClick={del}>
+              <Trash2 size={12}/> {deleting ? '删除中...' : '删除'}
             </button>
           )}
-          <button className="cs-btn cs-btn-primary" disabled={saving} onClick={handleSave}>
-            <Send size={13}/> {saving ? '保存中...' : isNew ? '发布文章' : '保存修改'}
+          <button className="cs-btn-pub" disabled={saving} onClick={save}>
+            <Send size={12}/> {saving ? '保存中...' : isNew ? '创建' : '保存'}
           </button>
         </div>
       </div>
 
-      <div className="cs-editor-body">
-        {/* 平台 + 状态选择行 */}
-        <div className="cs-editor-chips">
-          <div className="cs-chip-group">
-            <span className="cs-chip-label">平台</span>
-            {Object.entries(PLATFORM_MAP).map(([k, v]) => (
-              <button
-                key={k}
-                className={`cs-chip ${form.platform === k ? 'cs-chip-active' : ''}`}
-                style={form.platform === k ? { background: v.bg, color: v.color, borderColor: v.color + '50' } : {}}
-                onClick={() => set('platform', k)}
-              >
-                {v.label}
-              </button>
+      {/* 编辑区 */}
+      <div className="cs-edit-body">
+        {/* 平台 & 状态选择 */}
+        <div className="cs-edit-chips">
+          <div className="cs-chip-row">
+            <span className="cs-chip-hdr">平台</span>
+            {Object.entries(PLATFORM).map(([k,v]) => (
+              <button key={k} className={`cs-chip ${form.platform===k?'cs-chip-on':''}`}
+                style={form.platform===k?{color:v.color,borderColor:v.color+'60',background:v.bg}:{}}
+                onClick={()=>set('platform',k)}>{v.label}</button>
             ))}
           </div>
-          <div className="cs-chip-group">
-            <span className="cs-chip-label">状态</span>
-            {Object.entries(STATUS_MAP).map(([k, v]) => (
-              <button
-                key={k}
-                className={`cs-chip ${form.status === k ? 'cs-chip-active' : ''}`}
-                style={form.status === k ? { color: v.color, borderColor: v.color + '50', background: v.color + '15' } : {}}
-                onClick={() => set('status', k)}
-              >
-                {v.label}
-              </button>
+          <div className="cs-chip-row">
+            <span className="cs-chip-hdr">状态</span>
+            {Object.entries(STATUS).map(([k,v]) => (
+              <button key={k} className={`cs-chip ${form.status===k?'cs-chip-on':''}`}
+                style={form.status===k?{color:v.color,borderColor:v.color+'60',background:v.bg}:{}}
+                onClick={()=>set('status',k)}>{v.label}</button>
             ))}
           </div>
         </div>
@@ -265,107 +304,60 @@ function ArticleEditor({ article, onSave, onCancel, onDelete, isNew }) {
         {/* 标题 */}
         <input
           ref={titleRef}
-          className="cs-editor-title"
+          className="cs-edit-title"
           value={form.title}
           onChange={e => set('title', e.target.value)}
           placeholder="文章标题..."
         />
 
-        {/* 元信息行 */}
-        <div className="cs-editor-meta-row">
-          <div className="cs-meta-field">
-            <User size={12} className="cs-meta-icon"/>
-            <input
-              placeholder="作者"
-              value={form.author}
-              onChange={e => set('author', e.target.value)}
-              className="cs-meta-input"
-            />
+        {/* 元信息一行 */}
+        <div className="cs-edit-meta">
+          <div className="cs-meta-in">
+            <User size={11} className="cs-meta-ico"/>
+            <input value={form.author} onChange={e => set('author', e.target.value)}
+              placeholder="作者" className="cs-meta-line"/>
           </div>
-          <div className="cs-meta-field">
-            <Clock size={12} className="cs-meta-icon"/>
-            <input
-              type="datetime-local"
-              value={form.publish_time}
-              onChange={e => set('publish_time', e.target.value)}
-              className="cs-meta-input"
-            />
+          <div className="cs-meta-in">
+            <Clock size={11} className="cs-meta-ico"/>
+            <input type="datetime-local" value={form.publish_time}
+              onChange={e => set('publish_time', e.target.value)} className="cs-meta-line"/>
           </div>
-          <div className="cs-meta-field cs-meta-field-tags">
-            <Tag size={12} className="cs-meta-icon"/>
-            <input
-              placeholder="标签（逗号分隔）"
-              value={form.tags}
-              onChange={e => set('tags', e.target.value)}
-              className="cs-meta-input"
-            />
+          <div className="cs-meta-in cs-meta-in-lg">
+            <Tag size={11} className="cs-meta-ico"/>
+            <input value={form.tags} onChange={e => set('tags', e.target.value)}
+              placeholder="标签（逗号分隔）" className="cs-meta-line"/>
           </div>
         </div>
 
         {/* 摘要 */}
-        <div className="cs-editor-section">
-          <div className="cs-section-label">内容摘要</div>
-          <textarea
-            className="cs-editor-textarea cs-editor-summary"
-            value={form.summary}
-            onChange={e => set('summary', e.target.value)}
-            placeholder="文章核心内容概述..."
-            rows={3}
-          />
+        <div className="cs-edit-section">
+          <div className="cs-s-lbl">内容摘要</div>
+          <textarea className="cs-ta cs-ta-sum" value={form.summary}
+            onChange={e => set('summary', e.target.value)} placeholder="文章核心内容概述..." rows={3}/>
         </div>
 
         {/* 正文 */}
-        <div className="cs-editor-section">
-          <div className="cs-section-label">正文内容</div>
-          <textarea
-            className="cs-editor-textarea cs-editor-content"
-            value={form.content}
-            onChange={e => set('content', e.target.value)}
-            placeholder="粘贴文章正文内容，支持多段落..."
-            rows={18}
-          />
+        <div className="cs-edit-section">
+          <div className="cs-s-lbl">正文内容 {wc > 0 && <span className="cs-wc">{wc} 字</span>}</div>
+          <textarea className="cs-ta cs-ta-body" value={form.content}
+            onChange={e => set('content', e.target.value)} placeholder="开始写正文..." rows={20}/>
         </div>
 
         {/* 文件路径 */}
-        <div className="cs-editor-section">
-          <div className="cs-section-label">
-            <LinkIcon size={11}/> 文件路径 / 链接
-          </div>
-          <input
-            className="cs-editor-path-input"
-            value={form.content_path}
+        <div className="cs-edit-section">
+          <div className="cs-s-lbl"><LinkIcon size={10}/> 文件路径 / 链接</div>
+          <input className="cs-path-in" value={form.content_path}
             onChange={e => set('content_path', e.target.value)}
-            placeholder="/home/.../articles/xxx.md 或 https://..."
-          />
+            placeholder="/path/to/article.md 或 https://..."/>
         </div>
 
         {/* 备注 */}
-        <div className="cs-editor-section">
-          <div className="cs-section-label">备注</div>
-          <textarea
-            className="cs-editor-textarea cs-editor-remark"
-            value={form.remark}
-            onChange={e => set('remark', e.target.value)}
-            placeholder="人工复核说明、修改记录等..."
-            rows={2}
-          />
+        <div className="cs-edit-section">
+          <div className="cs-s-lbl">备注</div>
+          <textarea className="cs-ta cs-ta-note" value={form.remark}
+            onChange={e => set('remark', e.target.value)} placeholder="人工复核说明..." rows={2}/>
         </div>
       </div>
-    </div>
-  )
-}
-
-// ── 空状态 ─────────────────────────────────────────────────────────────────
-
-function EmptyState({ onNew }) {
-  return (
-    <div className="cs-empty-state">
-      <FileText size={48} strokeWidth={1} />
-      <p className="cs-empty-title">暂无文章</p>
-      <p className="cs-empty-desc">点击下方按钮创建第一篇文章</p>
-      <button className="cs-btn cs-btn-primary" onClick={onNew}>
-        <Plus size={13}/> 新建文章
-      </button>
     </div>
   )
 }
@@ -376,210 +368,50 @@ export default function ContentStudio() {
   const [articles, setArticles] = useState([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
-  const [filterStatus, setFilterStatus] = useState('all')
+  const [tab, setTab] = useState('all')
   const [selected, setSelected] = useState(null)
-  const [editing, setEditing] = useState(false) // 'view' | 'edit' | 'new'
+  const [mode, setMode] = useState('empty') // 'empty' | 'read' | 'edit' | 'new'
 
   const load = useCallback(async () => {
     setLoading(true)
-    try {
-      const data = await fetchArticles()
-      setArticles(Array.isArray(data) ? data : [])
-    } catch {
-      setArticles([])
-    } finally {
-      setLoading(false)
-    }
+    try { setArticles(await fetchArticles()) }
+    catch { setArticles([]) }
+    finally { setLoading(false) }
   }, [])
 
   useEffect(() => { load() }, [load])
 
-  // 按状态 + 搜索过滤
-  const filtered = articles.filter(a => {
-    const matchSearch = !search ||
-      a.title?.includes(search) || a.tags?.includes(search) || a.summary?.includes(search)
-    const matchStatus = filterStatus === 'all' || a.status === filterStatus
-    return matchSearch && matchStatus
-  })
-
-  // 各状态计数
-  const counts = {
-    draft:    articles.filter(a => a.status === 'draft').length,
-    review:   articles.filter(a => a.status === 'review').length,
-    published:articles.filter(a => a.status === 'published').length,
-  }
-
-  const handleSelect = (article) => {
-    if (selected?.id === article.id) return
-    setSelected(article)
-    setEditing('view')
-  }
-
-  const handleNew = () => {
-    setSelected(null)
-    setEditing('new')
-  }
-
-  const handleEdit = () => {
-    setEditing('edit')
-  }
-
-  const handleSave = () => {
-    setEditing('view')
-    load()
-  }
-
-  const handleDelete = () => {
-    setSelected(null)
-    setEditing(null)
-    load()
-  }
-
-  const handleCancel = () => {
-    setEditing(null)
-  }
+  const select = (a) => { setSelected(a); setMode('read') }
+  const newArticle = () => { setSelected(null); setMode('new') }
+  const toRead = () => setMode('read')
+  const toEdit = () => setMode('edit')
+  const onSave = () => { setMode('read'); load() }
+  const onCancel = () => { if (selected) setMode('read'); else setMode('empty') }
 
   return (
     <div className="content-studio">
-      {/* ── 左侧面板 ── */}
-      <div className="cs-panel-left">
-        <div className="cs-panel-header">
-          <h2>📝 图文制作</h2>
-          <button className="cs-btn cs-btn-primary cs-btn-sm" onClick={handleNew}>
-            <Plus size={12}/> 新建
-          </button>
-        </div>
-
-        <StatusTabs filterStatus={filterStatus} onChange={setFilterStatus} counts={counts} />
-        <SearchBar value={search} onChange={setSearch} />
-
-        <div className="cs-article-list">
-          {loading ? (
-            <div className="cs-loading">⏳ 加载中...</div>
-          ) : filtered.length === 0 ? (
-            <div className="cs-list-empty">
-              <p>暂无{filterStatus !== 'all' ? STATUS_MAP[filterStatus]?.label : ''}文章</p>
-            </div>
-          ) : (
-            filtered.map(a => (
-              <ArticleItem
-                key={a.id}
-                article={a}
-                selected={selected}
-                onSelect={handleSelect}
-              />
-            ))
-          )}
-        </div>
-      </div>
-
-      {/* ── 右侧面板 ── */}
-      <div className="cs-panel-right">
-        {editing === 'new' ? (
-          <ArticleEditor
-            article={null}
-            isNew
-            onSave={handleSave}
-            onCancel={handleCancel}
+      <LeftPanel
+        articles={articles} loading={loading}
+        search={search} setSearch={setSearch}
+        tab={tab} setTab={setTab}
+        selected={selected} onSelect={select} onNew={newArticle}
+      />
+      <div className="cs-right">
+        {mode === 'empty' && (
+          <div className="cs-blank">
+            <FileText size={52} strokeWidth={0.8}/>
+            <p>选择一篇文章</p>
+          </div>
+        )}
+        {(mode === 'read' || mode === 'edit') && selected && mode === 'read' && (
+          <ReadView article={selected} onEdit={toEdit} onNew={newArticle}/>
+        )}
+        {(mode === 'edit' || mode === 'new') && (
+          <EditView
+            article={mode === 'edit' ? selected : null}
+            isNew={mode === 'new'}
+            onSave={onSave} onCancel={onCancel}
           />
-        ) : selected ? (
-          editing === 'edit' ? (
-            <ArticleEditor
-              article={selected}
-              isNew={false}
-              onSave={handleSave}
-              onCancel={() => setEditing('view')}
-              onDelete={handleDelete}
-            />
-          ) : (
-            /* 阅读模式 */
-            <div className="cs-reader">
-              <div className="cs-reader-topbar">
-                <div style={{ display: 'flex', gap: 8 }}>
-                  <button className="cs-btn cs-btn-primary cs-btn-sm" onClick={handleEdit}>
-                    <Edit2 size={12}/> 编辑
-                  </button>
-                  <button className="cs-btn cs-btn-ghost cs-btn-sm" onClick={handleNew}>
-                    <Plus size={12}/> 新建
-                  </button>
-                </div>
-              </div>
-
-              <div className="cs-reader-body">
-                {/* 平台 + 状态 */}
-                <div className="cs-reader-chips">
-                  {(() => {
-                    const pm = PLATFORM_MAP[selected.platform] || PLATFORM_MAP.other
-                    const sm = STATUS_MAP[selected.status] || STATUS_MAP.draft
-                    return (
-                      <>
-                        <span className="cs-platform-pill" style={{ background: pm.bg, color: pm.color }}>{pm.label}</span>
-                        <span className="cs-status-pill" style={{ color: sm.color, background: sm.color + '18' }}>
-                          <span style={{ width: 6, height: 6, borderRadius: '50%', background: sm.color, display: 'inline-block', marginRight: 4, boxShadow: `0 0 5px ${sm.color}90` }} />
-                          {sm.label}
-                        </span>
-                      </>
-                    )
-                  })()}
-                </div>
-
-                {/* 标题 */}
-                <h1 className="cs-reader-title">{selected.title || '无标题'}</h1>
-
-                {/* 元信息 */}
-                <div className="cs-reader-meta">
-                  {selected.author && <span><User size={12}/>{selected.author}</span>}
-                  <span><Clock size={12}/>{fmtDate(selected.publish_time || selected.created_at)}</span>
-                  {selected.updated_at && <span>更新于 {fmtDate(selected.updated_at)}</span>}
-                </div>
-
-                {/* 标签 */}
-                {selected.tags && (
-                  <div className="cs-reader-tags">
-                    <Tag size={11}/>
-                    {selected.tags.split(',').filter(Boolean).map((t, i) => (
-                      <span key={i} className="cs-tag">{t.trim()}</span>
-                    ))}
-                  </div>
-                )}
-
-                {/* 摘要 */}
-                {selected.summary && (
-                  <div className="cs-reader-section cs-reader-summary">
-                    <div className="cs-section-label">内容摘要</div>
-                    <p>{selected.summary}</p>
-                  </div>
-                )}
-
-                {/* 正文 */}
-                <div className="cs-reader-section">
-                  <div className="cs-section-label">
-                    <BookOpen size={12}/> 正文内容
-                  </div>
-                  {selected.content ? (
-                    <div className="cs-reader-content">{selected.content}</div>
-                  ) : selected.content_path ? (
-                    <div className="cs-reader-path">
-                      <LinkIcon size={12}/>
-                      <code>{selected.content_path}</code>
-                    </div>
-                  ) : (
-                    <div className="cs-reader-empty-content">暂无正文内容</div>
-                  )}
-                </div>
-
-                {/* 备注 */}
-                {selected.remark && (
-                  <div className="cs-reader-section cs-reader-remark">
-                    <div className="cs-section-label">备注</div>
-                    <p>{selected.remark}</p>
-                  </div>
-                )}
-              </div>
-            </div>
-          )
-        ) : (
-          <EmptyState onNew={handleNew} />
         )}
       </div>
     </div>
