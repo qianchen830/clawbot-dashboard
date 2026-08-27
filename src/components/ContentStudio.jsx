@@ -1,24 +1,24 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import {
-  Plus, Search, Eye, Edit2, Trash2, X, FileText,
-  BookOpen, Clock, Tag, User, Link as LinkIcon, CheckCircle, AlertCircle, Send
+  Plus, Search, Edit2, Trash2, X, FileText, BookOpen,
+  Clock, Tag, User, Link as LinkIcon, CheckCircle, Eye, Send, ChevronLeft
 } from 'lucide-react'
 import './ContentStudio.css'
 
 const API = ''
 
 const STATUS_MAP = {
-  draft:     { label: '草稿',     cls: 'cs-status-draft',     color: '#64748b' },
-  review:    { label: '待审核',   cls: 'cs-status-review',    color: '#f59e0b' },
-  published: { label: '已发布',   cls: 'cs-status-published', color: '#10b981' },
-  rejected:  { label: '已驳回',   cls: 'cs-status-rejected',  color: '#ef4444' },
+  draft:     { label: '草稿',   color: '#64748b' },
+  review:    { label: '待审核', color: '#f59e0b' },
+  published: { label: '已发布', color: '#10b981' },
+  rejected:  { label: '已驳回', color: '#ef4444' },
 }
 
 const PLATFORM_MAP = {
-  wechat:       { label: '公众号',   cls: 'cs-platform-wechat' },
-  xiaohongshu:  { label: '小红书',   cls: 'cs-platform-xiaohongshu' },
-  douyin:       { label: '抖音',     cls: 'cs-platform-douyin' },
-  other:        { label: '其他',     cls: 'cs-platform-other' },
+  wechat:      { label: '公众号',   bg: 'rgba(7,193,96,0.18)',   color: '#34d399' },
+  xiaohongshu: { label: '小红书',   bg: 'rgba(254,44,85,0.18)',  color: '#fb7185' },
+  douyin:      { label: '抖音',     bg: 'rgba(0,242,234,0.12)',  color: '#5eead4' },
+  other:       { label: '其他',     bg: 'rgba(99,102,241,0.15)', color: '#a5b4fc' },
 }
 
 // ── API ─────────────────────────────────────────────────────────────────────
@@ -68,84 +68,84 @@ function fmtDate(iso) {
   return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`
 }
 
-// ── 工具栏筛选行 ─────────────────────────────────────────────────────────────
+// ── 状态 Tab 导航 ────────────────────────────────────────────────────────────
 
-function Toolbar({ search, setSearch, filterPlatform, setFilterPlatform, filterStatus, setFilterStatus }) {
+const STATUS_TABS = [
+  { key: 'all',      label: '全部' },
+  { key: 'draft',    label: '草稿' },
+  { key: 'review',   label: '待审核' },
+  { key: 'published',label: '已发布' },
+]
+
+function StatusTabs({ filterStatus, onChange, counts }) {
   return (
-    <div className="cs-toolbar">
-      <div className="cs-search-wrap">
-        <Search size={13} className="cs-search-icon" />
-        <input
-          type="text" placeholder="搜索标题、标签、摘要..." value={search}
-          onChange={e => setSearch(e.target.value)} className="cs-search-input"
-        />
-      </div>
-      <select value={filterPlatform} onChange={e => setFilterPlatform(e.target.value)}>
-        <option value="all">全部平台</option>
-        <option value="wechat">公众号</option>
-        <option value="xiaohongshu">小红书</option>
-        <option value="douyin">抖音</option>
-        <option value="other">其他</option>
-      </select>
-      <select value={filterStatus} onChange={e => setFilterStatus(e.target.value)}>
-        <option value="all">全部状态</option>
-        <option value="draft">草稿</option>
-        <option value="review">待审核</option>
-        <option value="published">已发布</option>
-        <option value="rejected">已驳回</option>
-      </select>
-    </div>
-  )
-}
-
-// ── 统计行 ───────────────────────────────────────────────────────────────────
-
-function StatsBar({ articles }) {
-  const stats = [
-    { key: 'total',     label: '全部',     color: '#6366f1' },
-    { key: 'draft',     label: '草稿',     color: '#64748b' },
-    { key: 'review',    label: '待审核',   color: '#f59e0b' },
-    { key: 'published', label: '已发布',   color: '#10b981' },
-  ]
-  return (
-    <div className="cs-stats-row">
-      {stats.map(s => {
-        const val = s.key === 'total'
-          ? articles.length
-          : articles.filter(a => a.status === s.key).length
+    <div className="cs-status-tabs">
+      {STATUS_TABS.map(tab => {
+        const count = tab.key === 'all'
+          ? Object.values(counts).reduce((a, b) => a + b, 0)
+          : (counts[tab.key] || 0)
+        const sm = STATUS_MAP[tab.key]
         return (
-          <div key={s.key} className="cs-stat-pill" style={{ '--pill-color': s.color }}>
-            <span className="cs-stat-pill-val">{val}</span>
-            <span className="cs-stat-pill-label">{s.label}</span>
-          </div>
+          <button
+            key={tab.key}
+            className={`cs-status-tab ${filterStatus === tab.key ? 'cs-status-tab-active' : ''}`}
+            style={filterStatus === tab.key && sm ? { '--tab-color': sm.color } : {}}
+            onClick={() => onChange(tab.key)}
+          >
+            {tab.key !== 'all' && sm && (
+              <span className="cs-tab-dot" style={{ background: sm.color }} />
+            )}
+            {tab.label}
+            {count > 0 && <span className="cs-tab-count">{count}</span>}
+          </button>
         )
       })}
     </div>
   )
 }
 
+// ── 搜索栏 ──────────────────────────────────────────────────────────────────
+
+function SearchBar({ value, onChange }) {
+  return (
+    <div className="cs-search-bar">
+      <Search size={13} className="cs-search-icon" />
+      <input
+        type="text" placeholder="搜索标题 / 标签 / 摘要..."
+        value={value} onChange={e => onChange(e.target.value)}
+        className="cs-search-input"
+      />
+    </div>
+  )
+}
+
 // ── 文章列表项 ───────────────────────────────────────────────────────────────
 
-function ArticleListItem({ article, selected, onSelect }) {
+function ArticleItem({ article, selected, onSelect }) {
   const pm = PLATFORM_MAP[article.platform] || PLATFORM_MAP.other
   const sm = STATUS_MAP[article.status] || STATUS_MAP.draft
+  const isActive = selected?.id === article.id
 
   return (
     <div
-      className={`cs-list-item ${selected ? 'cs-list-item-active' : ''}`}
+      className={`cs-article-item ${isActive ? 'cs-article-item-active' : ''}`}
       onClick={() => onSelect(article)}
+      style={isActive ? { '--item-accent': sm.color } : {}}
     >
-      <div className="cs-list-item-top">
-        <span className={`cs-platform-badge ${pm.cls}`}>{pm.label}</span>
-        <span className={`cs-status-dot ${sm.cls}`} title={sm.label} />
+      <div className="cs-item-row1">
+        <span className="cs-platform-pill" style={{ background: pm.bg, color: pm.color }}>{pm.label}</span>
+        <span className="cs-status-pill" style={{ color: sm.color, background: sm.color + '18' }}>
+          <span style={{ width: 6, height: 6, borderRadius: '50%', background: sm.color, display: 'inline-block', marginRight: 4, boxShadow: `0 0 5px ${sm.color}90` }} />
+          {sm.label}
+        </span>
       </div>
-      <div className="cs-list-item-title">{article.title || '无标题'}</div>
-      <div className="cs-list-item-meta">
-        {article.author && <span><User size={10}/> {article.author}</span>}
-        <span><Clock size={10}/> {fmtDate(article.publish_time || article.created_at)}</span>
+      <div className="cs-item-title">{article.title || '无标题'}</div>
+      <div className="cs-item-meta">
+        {article.author && <span><User size={10}/>{article.author}</span>}
+        <span><Clock size={10}/>{fmtDate(article.publish_time || article.created_at)}</span>
       </div>
       {article.tags && (
-        <div className="cs-list-item-tags">
+        <div className="cs-item-tags">
           {article.tags.split(',').filter(Boolean).slice(0, 3).map((t, i) => (
             <span key={i} className="cs-tag">{t.trim()}</span>
           ))}
@@ -155,27 +155,49 @@ function ArticleListItem({ article, selected, onSelect }) {
   )
 }
 
-// ── 正文阅读区 ───────────────────────────────────────────────────────────────
+// ── 内联编辑器 ───────────────────────────────────────────────────────────────
 
-function ArticleReader({ article, onEdit, onDelete }) {
+function ArticleEditor({ article, onSave, onCancel, onDelete, isNew }) {
+  const [form, setForm] = useState({
+    title:       article?.title       || '',
+    platform:    article?.platform    || 'wechat',
+    status:      article?.status      || 'draft',
+    author:      article?.author      || '',
+    tags:        article?.tags        || '',
+    summary:     article?.summary     || '',
+    content:     article?.content     || '',
+    content_path:article?.content_path|| '',
+    publish_time:article?.publish_time|| '',
+    remark:      article?.remark      || '',
+  })
+  const [saving, setSaving] = useState(false)
   const [deleting, setDeleting] = useState(false)
+  const titleRef = useRef(null)
 
-  if (!article) {
-    return (
-      <div className="cs-reader cs-reader-empty">
-        <div className="cs-reader-empty-inner">
-          <BookOpen size={44} strokeWidth={1.2} />
-          <p>选择一篇文章查看内容</p>
-        </div>
-      </div>
-    )
+  useEffect(() => { titleRef.current?.focus() }, [])
+
+  const set = (k, v) => setForm(f => ({ ...f, [k]: v }))
+
+  const handleSave = async () => {
+    if (!form.title.trim()) { toast('请填写标题'); titleRef.current?.focus(); return }
+    setSaving(true)
+    try {
+      const payload = {
+        ...form,
+        tags: form.tags.split(',').map(t => t.trim()).filter(Boolean).join(','),
+      }
+      if (isNew) { await createArticle(payload); toast('创建成功') }
+      else       { await updateArticle(article.id, payload); toast('保存成功') }
+      onSave()
+    } catch (e) {
+      toast(e.message)
+    } finally {
+      setSaving(false)
+    }
   }
 
-  const pm = PLATFORM_MAP[article.platform] || PLATFORM_MAP.other
-  const sm = STATUS_MAP[article.status] || STATUS_MAP.draft
-
   const handleDelete = async () => {
-    if (!confirm('确认删除？')) return
+    if (!confirm('确认删除这篇文章？')) return
     setDeleting(true)
     try {
       await deleteArticle(article.id)
@@ -188,183 +210,162 @@ function ArticleReader({ article, onEdit, onDelete }) {
     }
   }
 
+  const pm = PLATFORM_MAP[form.platform] || PLATFORM_MAP.other
+
   return (
-    <div className="cs-reader">
-      {/* 阅读区头部 */}
-      <div className="cs-reader-header">
-        <div className="cs-reader-meta-top">
-          <span className={`cs-platform-badge ${pm.cls}`}>{pm.label}</span>
-          <span className={`cs-status-badge ${sm.cls}`}>{sm.label}</span>
+    <div className="cs-editor">
+      {/* 编辑器顶部工具栏 */}
+      <div className="cs-editor-topbar">
+        <button className="cs-btn cs-btn-ghost" onClick={onCancel}>
+          <ChevronLeft size={14}/> 返回列表
+        </button>
+        <div className="cs-editor-topbar-actions">
+          {!isNew && (
+            <button className="cs-btn cs-btn-danger-ghost" disabled={deleting} onClick={handleDelete}>
+              <Trash2 size={13}/> {deleting ? '删除中...' : '删除'}
+            </button>
+          )}
+          <button className="cs-btn cs-btn-primary" disabled={saving} onClick={handleSave}>
+            <Send size={13}/> {saving ? '保存中...' : isNew ? '发布文章' : '保存修改'}
+          </button>
         </div>
-        <h1 className="cs-reader-title">{article.title}</h1>
-        <div className="cs-reader-info-row">
-          {article.author && <span><User size={12}/> {article.author}</span>}
-          <span><Clock size={12}/> {fmtDate(article.publish_time || article.created_at)}</span>
-          {article.updated_at && <span>更新于 {fmtDate(article.updated_at)}</span>}
-        </div>
-        {article.tags && (
-          <div className="cs-reader-tags">
-            <Tag size={11}/>
-            {article.tags.split(',').filter(Boolean).map((t, i) => (
-              <span key={i} className="cs-tag">{t.trim()}</span>
+      </div>
+
+      <div className="cs-editor-body">
+        {/* 平台 + 状态选择行 */}
+        <div className="cs-editor-chips">
+          <div className="cs-chip-group">
+            <span className="cs-chip-label">平台</span>
+            {Object.entries(PLATFORM_MAP).map(([k, v]) => (
+              <button
+                key={k}
+                className={`cs-chip ${form.platform === k ? 'cs-chip-active' : ''}`}
+                style={form.platform === k ? { background: v.bg, color: v.color, borderColor: v.color + '50' } : {}}
+                onClick={() => set('platform', k)}
+              >
+                {v.label}
+              </button>
             ))}
           </div>
-        )}
-      </div>
-
-      {/* 摘要区 */}
-      {article.summary && (
-        <div className="cs-reader-summary">
-          <div className="cs-reader-summary-label">内容摘要</div>
-          <p>{article.summary}</p>
-        </div>
-      )}
-
-      {/* 正文内容 */}
-      <div className="cs-reader-body-label">
-        <BookOpen size={13}/> 正文内容
-      </div>
-      <div className="cs-reader-body">
-        {article.content ? (
-          <div className="cs-reader-content-text">{article.content}</div>
-        ) : article.content_path ? (
-          <div className="cs-reader-content-path">
-            <LinkIcon size={13}/>
-            <span>内容文件：</span>
-            <code>{article.content_path}</code>
+          <div className="cs-chip-group">
+            <span className="cs-chip-label">状态</span>
+            {Object.entries(STATUS_MAP).map(([k, v]) => (
+              <button
+                key={k}
+                className={`cs-chip ${form.status === k ? 'cs-chip-active' : ''}`}
+                style={form.status === k ? { color: v.color, borderColor: v.color + '50', background: v.color + '15' } : {}}
+                onClick={() => set('status', k)}
+              >
+                {v.label}
+              </button>
+            ))}
           </div>
-        ) : (
-          <div className="cs-reader-no-content">暂无正文内容</div>
-        )}
-      </div>
-
-      {/* 备注 */}
-      {article.remark && (
-        <div className="cs-reader-remark">
-          <div className="cs-reader-remark-label">📋 备注</div>
-          <p>{article.remark}</p>
         </div>
-      )}
 
-      {/* 操作栏 */}
-      <div className="cs-reader-actions">
-        <button className="cs-btn cs-btn-primary" onClick={() => onEdit(article)}>
-          <Edit2 size={13}/> 编辑
-        </button>
-        <button className="cs-btn cs-btn-danger" disabled={deleting} onClick={handleDelete}>
-          <Trash2 size={13}/> {deleting ? '删除中...' : '删除'}
-        </button>
+        {/* 标题 */}
+        <input
+          ref={titleRef}
+          className="cs-editor-title"
+          value={form.title}
+          onChange={e => set('title', e.target.value)}
+          placeholder="文章标题..."
+        />
+
+        {/* 元信息行 */}
+        <div className="cs-editor-meta-row">
+          <div className="cs-meta-field">
+            <User size={12} className="cs-meta-icon"/>
+            <input
+              placeholder="作者"
+              value={form.author}
+              onChange={e => set('author', e.target.value)}
+              className="cs-meta-input"
+            />
+          </div>
+          <div className="cs-meta-field">
+            <Clock size={12} className="cs-meta-icon"/>
+            <input
+              type="datetime-local"
+              value={form.publish_time}
+              onChange={e => set('publish_time', e.target.value)}
+              className="cs-meta-input"
+            />
+          </div>
+          <div className="cs-meta-field cs-meta-field-tags">
+            <Tag size={12} className="cs-meta-icon"/>
+            <input
+              placeholder="标签（逗号分隔）"
+              value={form.tags}
+              onChange={e => set('tags', e.target.value)}
+              className="cs-meta-input"
+            />
+          </div>
+        </div>
+
+        {/* 摘要 */}
+        <div className="cs-editor-section">
+          <div className="cs-section-label">内容摘要</div>
+          <textarea
+            className="cs-editor-textarea cs-editor-summary"
+            value={form.summary}
+            onChange={e => set('summary', e.target.value)}
+            placeholder="文章核心内容概述..."
+            rows={3}
+          />
+        </div>
+
+        {/* 正文 */}
+        <div className="cs-editor-section">
+          <div className="cs-section-label">正文内容</div>
+          <textarea
+            className="cs-editor-textarea cs-editor-content"
+            value={form.content}
+            onChange={e => set('content', e.target.value)}
+            placeholder="粘贴文章正文内容，支持多段落..."
+            rows={18}
+          />
+        </div>
+
+        {/* 文件路径 */}
+        <div className="cs-editor-section">
+          <div className="cs-section-label">
+            <LinkIcon size={11}/> 文件路径 / 链接
+          </div>
+          <input
+            className="cs-editor-path-input"
+            value={form.content_path}
+            onChange={e => set('content_path', e.target.value)}
+            placeholder="/home/.../articles/xxx.md 或 https://..."
+          />
+        </div>
+
+        {/* 备注 */}
+        <div className="cs-editor-section">
+          <div className="cs-section-label">备注</div>
+          <textarea
+            className="cs-editor-textarea cs-editor-remark"
+            value={form.remark}
+            onChange={e => set('remark', e.target.value)}
+            placeholder="人工复核说明、修改记录等..."
+            rows={2}
+          />
+        </div>
       </div>
     </div>
   )
 }
 
-// ── 新建/编辑弹窗 ───────────────────────────────────────────────────────────
+// ── 空状态 ─────────────────────────────────────────────────────────────────
 
-function ArticleModal({ article, onSave, onClose }) {
-  const isEdit = !!article?.id
-  const [form, setForm] = useState({
-    title: article?.title || '',
-    platform: article?.platform || 'wechat',
-    status: article?.status || 'draft',
-    author: article?.author || '',
-    tags: article?.tags || '',
-    summary: article?.summary || '',
-    content: article?.content || '',
-    content_path: article?.content_path || '',
-    publish_time: article?.publish_time || '',
-    remark: article?.remark || '',
-  })
-  const [saving, setSaving] = useState(false)
-
-  const set = (k, v) => setForm(f => ({ ...f, [k]: v }))
-
-  const handleSave = async () => {
-    if (!form.title.trim()) { toast('请填写标题'); return }
-    setSaving(true)
-    try {
-      const payload = {
-        ...form,
-        tags: form.tags.split(',').map(t => t.trim()).filter(Boolean).join(','),
-      }
-      if (isEdit) { await updateArticle(article.id, payload); toast('更新成功') }
-      else        { await createArticle(payload);              toast('创建成功') }
-      onSave()
-    } catch (e) {
-      toast(e.message)
-    } finally {
-      setSaving(false)
-    }
-  }
-
+function EmptyState({ onNew }) {
   return (
-    <div className="cs-modal-overlay" onClick={e => e.target === e.currentTarget && onClose()}>
-      <div className="cs-modal">
-        <div className="cs-modal-header">
-          <h3>{isEdit ? '编辑文章' : '新建文章'}</h3>
-          <button className="cs-btn cs-btn-secondary" style={{padding: '4px 8px'}} onClick={onClose}><X size={14}/></button>
-        </div>
-        <div className="cs-modal-body">
-          <div className="cs-form-grid">
-            <div className="cs-form-group cs-full">
-              <label>标题 *</label>
-              <input value={form.title} onChange={e => set('title', e.target.value)} placeholder="文章标题" />
-            </div>
-            <div className="cs-form-group">
-              <label>平台</label>
-              <select value={form.platform} onChange={e => set('platform', e.target.value)}>
-                <option value="wechat">公众号</option>
-                <option value="xiaohongshu">小红书</option>
-                <option value="douyin">抖音</option>
-                <option value="other">其他</option>
-              </select>
-            </div>
-            <div className="cs-form-group">
-              <label>状态</label>
-              <select value={form.status} onChange={e => set('status', e.target.value)}>
-                <option value="draft">草稿</option>
-                <option value="review">待审核</option>
-                <option value="published">已发布</option>
-                <option value="rejected">已驳回</option>
-              </select>
-            </div>
-            <div className="cs-form-group">
-              <label>作者</label>
-              <input value={form.author} onChange={e => set('author', e.target.value)} placeholder="作者昵称" />
-            </div>
-            <div className="cs-form-group">
-              <label>预计/实际发布时间</label>
-              <input type="datetime-local" value={form.publish_time} onChange={e => set('publish_time', e.target.value)} />
-            </div>
-            <div className="cs-form-group cs-full">
-              <label>标签（逗号分隔）</label>
-              <input value={form.tags} onChange={e => set('tags', e.target.value)} placeholder="AI, 职场, 工具测评" />
-            </div>
-            <div className="cs-form-group cs-full">
-              <label>内容摘要</label>
-              <textarea value={form.summary} onChange={e => set('summary', e.target.value)} placeholder="文章核心内容概述..." style={{minHeight: 72}} />
-            </div>
-            <div className="cs-form-group cs-full">
-              <label>正文内容</label>
-              <textarea value={form.content} onChange={e => set('content', e.target.value)} placeholder="粘贴文章正文内容，或上传文件后在此引用路径..." style={{minHeight: 160}} />
-            </div>
-            <div className="cs-form-group cs-full">
-              <label>文件路径 / 链接</label>
-              <input value={form.content_path} onChange={e => set('content_path', e.target.value)} placeholder="/home/.../articles/xxx.md 或 https://..." />
-            </div>
-            <div className="cs-form-group cs-full">
-              <label>备注</label>
-              <textarea value={form.remark} onChange={e => set('remark', e.target.value)} placeholder="人工复核说明、修改记录等..." style={{minHeight: 64}} />
-            </div>
-          </div>
-        </div>
-        <div className="cs-modal-footer">
-          <button className="cs-btn cs-btn-secondary" onClick={onClose}>取消</button>
-          <button className="cs-btn cs-btn-primary" disabled={saving} onClick={handleSave}>
-            <Send size={13}/> {saving ? '保存中...' : isEdit ? '保存修改' : '创建文章'}
-          </button>
-        </div>
-      </div>
+    <div className="cs-empty-state">
+      <FileText size={48} strokeWidth={1} />
+      <p className="cs-empty-title">暂无文章</p>
+      <p className="cs-empty-desc">点击下方按钮创建第一篇文章</p>
+      <button className="cs-btn cs-btn-primary" onClick={onNew}>
+        <Plus size={13}/> 新建文章
+      </button>
     </div>
   )
 }
@@ -375,10 +376,9 @@ export default function ContentStudio() {
   const [articles, setArticles] = useState([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
-  const [filterPlatform, setFilterPlatform] = useState('all')
   const [filterStatus, setFilterStatus] = useState('all')
   const [selected, setSelected] = useState(null)
-  const [modal, setModal] = useState(null)
+  const [editing, setEditing] = useState(false) // 'view' | 'edit' | 'new'
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -394,69 +394,78 @@ export default function ContentStudio() {
 
   useEffect(() => { load() }, [load])
 
+  // 按状态 + 搜索过滤
   const filtered = articles.filter(a => {
     const matchSearch = !search ||
       a.title?.includes(search) || a.tags?.includes(search) || a.summary?.includes(search)
-    const matchPlatform = filterPlatform === 'all' || a.platform === filterPlatform
     const matchStatus = filterStatus === 'all' || a.status === filterStatus
-    return matchSearch && matchPlatform && matchStatus
+    return matchSearch && matchStatus
   })
 
+  // 各状态计数
+  const counts = {
+    draft:    articles.filter(a => a.status === 'draft').length,
+    review:   articles.filter(a => a.status === 'review').length,
+    published:articles.filter(a => a.status === 'published').length,
+  }
+
   const handleSelect = (article) => {
-    setSelected(prev => prev?.id === article.id ? null : article)
-  }
-
-  const handleEdit = (article) => {
+    if (selected?.id === article.id) return
     setSelected(article)
-    setModal(article)
+    setEditing('view')
   }
 
-  const handleModalSave = () => {
-    setModal(null)
+  const handleNew = () => {
+    setSelected(null)
+    setEditing('new')
+  }
+
+  const handleEdit = () => {
+    setEditing('edit')
+  }
+
+  const handleSave = () => {
+    setEditing('view')
     load()
   }
 
   const handleDelete = () => {
     setSelected(null)
+    setEditing(null)
     load()
+  }
+
+  const handleCancel = () => {
+    setEditing(null)
   }
 
   return (
     <div className="content-studio">
       {/* ── 左侧面板 ── */}
-      <div className="cs-panel cs-panel-left">
+      <div className="cs-panel-left">
         <div className="cs-panel-header">
           <h2>📝 图文制作</h2>
-          <button className="cs-btn cs-btn-primary" onClick={() => setModal('add')}>
-            <Plus size={13}/> 新建
+          <button className="cs-btn cs-btn-primary cs-btn-sm" onClick={handleNew}>
+            <Plus size={12}/> 新建
           </button>
         </div>
 
-        <Toolbar
-          search={search} setSearch={setSearch}
-          filterPlatform={filterPlatform} setFilterPlatform={setFilterPlatform}
-          filterStatus={filterStatus} setFilterStatus={setFilterStatus}
-        />
+        <StatusTabs filterStatus={filterStatus} onChange={setFilterStatus} counts={counts} />
+        <SearchBar value={search} onChange={setSearch} />
 
-        <StatsBar articles={filtered} />
-
-        <div className="cs-list">
+        <div className="cs-article-list">
           {loading ? (
             <div className="cs-loading">⏳ 加载中...</div>
           ) : filtered.length === 0 ? (
-            <div className="cs-empty-list">
-              <FileText size={32} strokeWidth={1.2}/>
-              <p>暂无文章</p>
-              <button className="cs-btn cs-btn-primary" onClick={() => setModal('add')}>
-                <Plus size={12}/> 新建文章
-              </button>
+            <div className="cs-list-empty">
+              <p>暂无{filterStatus !== 'all' ? STATUS_MAP[filterStatus]?.label : ''}文章</p>
             </div>
           ) : (
             filtered.map(a => (
-              <ArticleListItem
+              <ArticleItem
                 key={a.id}
                 article={a}
-                selected={selected?.id === a.id}
+                selected={selected}
                 onSelect={handleSelect}
               />
             ))
@@ -464,22 +473,115 @@ export default function ContentStudio() {
         </div>
       </div>
 
-      {/* ── 右侧正文面板 ── */}
-      <div className="cs-panel cs-panel-right">
-        <ArticleReader
-          article={selected}
-          onEdit={handleEdit}
-          onDelete={handleDelete}
-        />
-      </div>
+      {/* ── 右侧面板 ── */}
+      <div className="cs-panel-right">
+        {editing === 'new' ? (
+          <ArticleEditor
+            article={null}
+            isNew
+            onSave={handleSave}
+            onCancel={handleCancel}
+          />
+        ) : selected ? (
+          editing === 'edit' ? (
+            <ArticleEditor
+              article={selected}
+              isNew={false}
+              onSave={handleSave}
+              onCancel={() => setEditing('view')}
+              onDelete={handleDelete}
+            />
+          ) : (
+            /* 阅读模式 */
+            <div className="cs-reader">
+              <div className="cs-reader-topbar">
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <button className="cs-btn cs-btn-primary cs-btn-sm" onClick={handleEdit}>
+                    <Edit2 size={12}/> 编辑
+                  </button>
+                  <button className="cs-btn cs-btn-ghost cs-btn-sm" onClick={handleNew}>
+                    <Plus size={12}/> 新建
+                  </button>
+                </div>
+              </div>
 
-      {modal && (
-        <ArticleModal
-          article={modal === 'add' ? null : modal}
-          onSave={handleModalSave}
-          onClose={() => setModal(null)}
-        />
-      )}
+              <div className="cs-reader-body">
+                {/* 平台 + 状态 */}
+                <div className="cs-reader-chips">
+                  {(() => {
+                    const pm = PLATFORM_MAP[selected.platform] || PLATFORM_MAP.other
+                    const sm = STATUS_MAP[selected.status] || STATUS_MAP.draft
+                    return (
+                      <>
+                        <span className="cs-platform-pill" style={{ background: pm.bg, color: pm.color }}>{pm.label}</span>
+                        <span className="cs-status-pill" style={{ color: sm.color, background: sm.color + '18' }}>
+                          <span style={{ width: 6, height: 6, borderRadius: '50%', background: sm.color, display: 'inline-block', marginRight: 4, boxShadow: `0 0 5px ${sm.color}90` }} />
+                          {sm.label}
+                        </span>
+                      </>
+                    )
+                  })()}
+                </div>
+
+                {/* 标题 */}
+                <h1 className="cs-reader-title">{selected.title || '无标题'}</h1>
+
+                {/* 元信息 */}
+                <div className="cs-reader-meta">
+                  {selected.author && <span><User size={12}/>{selected.author}</span>}
+                  <span><Clock size={12}/>{fmtDate(selected.publish_time || selected.created_at)}</span>
+                  {selected.updated_at && <span>更新于 {fmtDate(selected.updated_at)}</span>}
+                </div>
+
+                {/* 标签 */}
+                {selected.tags && (
+                  <div className="cs-reader-tags">
+                    <Tag size={11}/>
+                    {selected.tags.split(',').filter(Boolean).map((t, i) => (
+                      <span key={i} className="cs-tag">{t.trim()}</span>
+                    ))}
+                  </div>
+                )}
+
+                {/* 摘要 */}
+                {selected.summary && (
+                  <div className="cs-reader-section cs-reader-summary">
+                    <div className="cs-section-label">内容摘要</div>
+                    <p>{selected.summary}</p>
+                  </div>
+                )}
+
+                {/* 正文 */}
+                <div className="cs-reader-section">
+                  <div className="cs-section-label">
+                    <BookOpen size={12}/> 正文内容
+                  </div>
+                  {selected.content ? (
+                    <div className="cs-reader-content">{selected.content}</div>
+                  ) : selected.content_path ? (
+                    <div className="cs-reader-path">
+                      <LinkIcon size={12}/>
+                      <code>{selected.content_path}</code>
+                    </div>
+                  ) : (
+                    <div className="cs-reader-empty-content">暂无正文内容</div>
+                  )}
+                </div>
+
+                {/* 备注 */}
+                {selected.remark && (
+                  <div className="cs-reader-section cs-reader-remark">
+                    <div className="cs-section-label">备注</div>
+                    <p>{selected.remark}</p>
+                  </div>
+                )}
+              </div>
+            </div>
+          )
+        ) : (
+          <EmptyState onNew={handleNew} />
+        )}
+      </div>
     </div>
   )
 }
