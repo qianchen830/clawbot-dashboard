@@ -1,121 +1,472 @@
-/* ── 图文制作 · ContentStudio 美化版 ──────────────────────── */
+/* ── 图文制作 · 左右分栏布局 ─────────────────────────────── */
 
 .content-studio {
-  padding: 28px 32px;
-  max-width: 1200px;
+  display: flex;
+  height: calc(100vh - 56px);
+  overflow: hidden;
+  padding: 0;
 }
 
-/* ── 头部 ── */
-.cs-header {
+/* ── 左侧面板 ── */
+.cs-panel-left {
+  width: 380px;
+  min-width: 320px;
+  max-width: 460px;
+  display: flex;
+  flex-direction: column;
+  border-right: 1px solid rgba(255,255,255,0.06);
+  background: #131924;
+  overflow: hidden;
+}
+
+.cs-panel-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: 28px;
+  padding: 20px 18px 14px;
+  border-bottom: 1px solid rgba(255,255,255,0.04);
+  flex-shrink: 0;
 }
 
-.cs-header h2 {
-  font-size: 22px;
+.cs-panel-header h2 {
+  font-size: 17px;
   font-weight: 700;
-  color: #f1f5f9;
+  color: #e2e8f0;
   margin: 0;
-  letter-spacing: -0.3px;
+  letter-spacing: -0.2px;
 }
 
-/* ── 统计卡片 ── */
-.cs-stats {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 14px;
-  margin-bottom: 24px;
-}
-
-.cs-stat-card {
-  background: linear-gradient(135deg, #1a2235 0%, #1e2740 100%);
-  border: 1px solid rgba(255,255,255,0.06);
-  border-radius: 14px;
-  padding: 16px 20px;
-  position: relative;
+/* ── 右侧正文面板 ── */
+.cs-panel-right {
+  flex: 1;
   overflow: hidden;
-  box-shadow: 0 2px 12px rgba(0,0,0,0.25);
-  transition: transform 0.2s ease, box-shadow 0.2s ease;
-}
-
-.cs-stat-card::before {
-  content: '';
-  position: absolute;
-  top: 0; left: 0; right: 0;
-  height: 2px;
-  border-radius: 14px 14px 0 0;
-}
-
-.cs-stat-card:nth-child(1)::before { background: linear-gradient(90deg, #6366f1, #8b5cf6); }
-.cs-stat-card:nth-child(2)::before { background: linear-gradient(90deg, #64748b, #94a3b8); }
-.cs-stat-card:nth-child(3)::before { background: linear-gradient(90deg, #f59e0b, #fbbf24); }
-.cs-stat-card:nth-child(4)::before { background: linear-gradient(90deg, #10b981, #34d399); }
-
-.cs-stat-card:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 6px 20px rgba(0,0,0,0.35);
-}
-
-.cs-stat-value {
-  font-size: 28px;
-  font-weight: 800;
-  color: #f1f5f9;
-  line-height: 1;
-  margin-bottom: 4px;
-}
-
-.cs-stat-label {
-  font-size: 12px;
-  color: #64748b;
-  font-weight: 500;
-  letter-spacing: 0.3px;
-  text-transform: uppercase;
+  background: #0d1117;
+  display: flex;
+  flex-direction: column;
 }
 
 /* ── 工具栏 ── */
 .cs-toolbar {
+  padding: 12px 14px 8px;
   display: flex;
-  gap: 10px;
-  margin-bottom: 18px;
-  align-items: center;
-  flex-wrap: wrap;
+  flex-direction: column;
+  gap: 7px;
+  flex-shrink: 0;
 }
 
-.cs-toolbar input[type="text"] {
+.cs-search-wrap {
+  position: relative;
+}
+
+.cs-search-icon {
+  position: absolute;
+  left: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: #475569;
+  pointer-events: none;
+}
+
+.cs-search-input {
+  width: 100%;
   background: rgba(255,255,255,0.04);
   border: 1px solid rgba(255,255,255,0.08);
   border-radius: 8px;
-  padding: 8px 14px;
+  padding: 7px 12px 7px 32px;
   color: #e2e8f0;
   font-size: 13px;
-  width: 260px;
+  box-sizing: border-box;
   transition: border-color 0.2s, box-shadow 0.2s;
 }
 
-.cs-toolbar input[type="text"]::placeholder { color: #475569; }
-
-.cs-toolbar input[type="text"]:focus {
+.cs-search-input::placeholder { color: #475569; }
+.cs-search-input:focus {
   outline: none;
   border-color: #6366f1;
-  box-shadow: 0 0 0 3px rgba(99,102,241,0.15);
+  box-shadow: 0 0 0 3px rgba(99,102,241,0.12);
 }
 
 .cs-toolbar select {
   background: rgba(255,255,255,0.04);
-  border: 1px solid rgba(255,255,255,0.08);
-  border-radius: 8px;
-  padding: 8px 14px;
-  color: #e2e8f0;
-  font-size: 13px;
+  border: 1px solid rgba(255,255,255,0.07);
+  border-radius: 7px;
+  padding: 6px 11px;
+  color: #94a3b8;
+  font-size: 12.5px;
   cursor: pointer;
   transition: border-color 0.2s;
+  width: 100%;
 }
 
 .cs-toolbar select:focus {
   outline: none;
   border-color: #6366f1;
+}
+
+/* ── 统计行 ── */
+.cs-stats-row {
+  display: flex;
+  gap: 6px;
+  padding: 0 14px 10px;
+  flex-shrink: 0;
+  flex-wrap: wrap;
+}
+
+.cs-stat-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  background: rgba(255,255,255,0.03);
+  border: 1px solid rgba(255,255,255,0.06);
+  border-radius: 20px;
+  padding: 3px 10px;
+  flex: 1;
+  justify-content: center;
+  min-width: 0;
+}
+
+.cs-stat-pill-val {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--pill-color, #6366f1);
+}
+
+.cs-stat-pill-label {
+  font-size: 11px;
+  color: #475569;
+  white-space: nowrap;
+}
+
+/* ── 文章列表 ── */
+.cs-list {
+  flex: 1;
+  overflow-y: auto;
+  padding: 4px 10px 16px;
+}
+
+.cs-list::-webkit-scrollbar { width: 4px; }
+.cs-list::-webkit-scrollbar-track { background: transparent; }
+.cs-list::-webkit-scrollbar-thumb { background: #2a3441; border-radius: 4px; }
+
+.cs-loading {
+  text-align: center;
+  padding: 40px;
+  color: #475569;
+  font-size: 13px;
+}
+
+.cs-empty-list {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  padding: 48px 20px;
+  color: #475569;
+  text-align: center;
+}
+
+.cs-empty-list p { margin: 0; font-size: 13px; }
+
+/* ── 列表项 ── */
+.cs-list-item {
+  background: rgba(255,255,255,0.02);
+  border: 1px solid rgba(255,255,255,0.05);
+  border-radius: 10px;
+  padding: 12px 13px;
+  margin-bottom: 7px;
+  cursor: pointer;
+  transition: all 0.18s ease;
+  position: relative;
+}
+
+.cs-list-item:hover {
+  background: rgba(255,255,255,0.05);
+  border-color: rgba(99,102,241,0.25);
+  transform: translateX(2px);
+}
+
+.cs-list-item-active {
+  background: rgba(99,102,241,0.1) !important;
+  border-color: rgba(99,102,241,0.4) !important;
+  box-shadow: 0 0 0 1px rgba(99,102,241,0.15);
+}
+
+.cs-list-item-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 6px;
+}
+
+.cs-list-item-title {
+  font-size: 13.5px;
+  font-weight: 600;
+  color: #cbd5e1;
+  margin-bottom: 5px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  letter-spacing: -0.1px;
+}
+
+.cs-list-item-active .cs-list-item-title { color: #e2e8f0; }
+
+.cs-list-item-meta {
+  font-size: 11px;
+  color: #475569;
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.cs-list-item-meta span {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+}
+
+.cs-list-item-tags {
+  display: flex;
+  gap: 5px;
+  flex-wrap: wrap;
+  margin-top: 6px;
+}
+
+/* ── 平台徽章 & 状态 ── */
+.cs-platform-badge {
+  font-size: 10.5px;
+  font-weight: 700;
+  padding: 2px 7px;
+  border-radius: 5px;
+  letter-spacing: 0.3px;
+  text-transform: uppercase;
+}
+
+.cs-platform-wechat    { background: rgba(7,193,96,0.2);  color: #34d399; border: 1px solid rgba(7,193,96,0.3); }
+.cs-platform-xiaohongshu { background: rgba(254,44,85,0.18); color: #fb7185; border: 1px solid rgba(254,44,85,0.3); }
+.cs-platform-douyin    { background: rgba(0,242,234,0.12); color: #5eead4; border: 1px solid rgba(0,242,234,0.25); }
+.cs-platform-other     { background: rgba(99,102,241,0.15); color: #a5b4fc; border: 1px solid rgba(99,102,241,0.25); }
+
+.cs-status-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.cs-status-dot.cs-status-draft     { background: #64748b; }
+.cs-status-dot.cs-status-review    { background: #f59e0b; box-shadow: 0 0 6px rgba(245,158,11,0.5); }
+.cs-status-dot.cs-status-published { background: #10b981; box-shadow: 0 0 6px rgba(16,185,129,0.5); }
+.cs-status-dot.cs-status-rejected  { background: #ef4444; }
+
+/* ── 标签 ── */
+.cs-tag {
+  font-size: 10.5px;
+  background: rgba(99,102,241,0.1);
+  color: #818cf8;
+  padding: 1px 7px;
+  border-radius: 20px;
+  font-weight: 500;
+}
+
+/* ── 正文阅读区 ── */
+.cs-reader {
+  flex: 1;
+  overflow-y: auto;
+  padding: 28px 36px 40px;
+  max-width: 860px;
+  width: 100%;
+  margin: 0 auto;
+}
+
+.cs-reader::-webkit-scrollbar { width: 5px; }
+.cs-reader::-webkit-scrollbar-track { background: transparent; }
+.cs-reader::-webkit-scrollbar-thumb { background: #2a3441; border-radius: 4px; }
+
+.cs-reader-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.cs-reader-empty-inner {
+  text-align: center;
+  color: #2d3a4d;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+}
+
+.cs-reader-empty-inner p { font-size: 14px; color: #1e2d3d; margin: 0; }
+
+/* ── 阅读区头部 ── */
+.cs-reader-header { margin-bottom: 24px; }
+
+.cs-reader-meta-top {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.cs-reader-title {
+  font-size: 22px;
+  font-weight: 800;
+  color: #f1f5f9;
+  margin: 0 0 12px;
+  letter-spacing: -0.4px;
+  line-height: 1.35;
+}
+
+.cs-reader-info-row {
+  display: flex;
+  gap: 18px;
+  flex-wrap: wrap;
+  color: #475569;
+  font-size: 12.5px;
+  margin-bottom: 10px;
+}
+
+.cs-reader-info-row span {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.cs-reader-tags {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  align-items: center;
+  color: #475569;
+}
+
+/* ── 状态徽章 ── */
+.cs-status-badge {
+  font-size: 11px;
+  font-weight: 600;
+  padding: 3px 9px;
+  border-radius: 20px;
+}
+
+.cs-status-draft     { background: rgba(100,116,139,0.15); color: #94a3b8; }
+.cs-status-review    { background: rgba(245,158,11,0.12); color: #fbbf24; }
+.cs-status-published { background: rgba(16,185,129,0.12); color: #34d399; }
+.cs-status-rejected  { background: rgba(239,68,68,0.12); color: #f87171; }
+
+/* ── 摘要区 ── */
+.cs-reader-summary {
+  background: rgba(99,102,241,0.06);
+  border: 1px solid rgba(99,102,241,0.12);
+  border-left: 3px solid #6366f1;
+  border-radius: 8px;
+  padding: 14px 18px;
+  margin-bottom: 24px;
+}
+
+.cs-reader-summary-label {
+  font-size: 11px;
+  font-weight: 700;
+  color: #6366f1;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  margin-bottom: 7px;
+}
+
+.cs-reader-summary p {
+  margin: 0;
+  font-size: 13.5px;
+  color: #94a3b8;
+  line-height: 1.75;
+}
+
+/* ── 正文内容 ── */
+.cs-reader-body-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 700;
+  color: #2d3a4d;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  margin-bottom: 10px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid rgba(255,255,255,0.04);
+}
+
+.cs-reader-body {
+  background: rgba(255,255,255,0.015);
+  border: 1px solid rgba(255,255,255,0.05);
+  border-radius: 12px;
+  padding: 22px 26px;
+  min-height: 200px;
+  margin-bottom: 20px;
+}
+
+.cs-reader-content-text {
+  font-size: 14px;
+  color: #94a3b8;
+  line-height: 1.85;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.cs-reader-content-path {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #475569;
+  font-size: 13px;
+  padding: 10px 0;
+}
+
+.cs-reader-content-path code {
+  background: rgba(255,255,255,0.05);
+  padding: 3px 8px;
+  border-radius: 5px;
+  color: #818cf8;
+  font-size: 12px;
+}
+
+.cs-reader-no-content {
+  color: #2d3a4d;
+  font-size: 13px;
+  padding: 20px 0;
+  text-align: center;
+}
+
+/* ── 备注 ── */
+.cs-reader-remark {
+  background: rgba(245,158,11,0.05);
+  border: 1px solid rgba(245,158,11,0.1);
+  border-left: 3px solid #f59e0b;
+  border-radius: 8px;
+  padding: 12px 16px;
+  margin-bottom: 20px;
+}
+
+.cs-reader-remark-label {
+  font-size: 11px;
+  font-weight: 700;
+  color: #f59e0b;
+  margin-bottom: 6px;
+  letter-spacing: 0.3px;
+}
+
+.cs-reader-remark p {
+  margin: 0;
+  font-size: 13px;
+  color: #64748b;
+  line-height: 1.7;
+}
+
+/* ── 操作栏 ── */
+.cs-reader-actions {
+  display: flex;
+  gap: 10px;
+  padding-top: 16px;
+  border-top: 1px solid rgba(255,255,255,0.05);
 }
 
 /* ── 按钮 ── */
@@ -130,242 +481,46 @@
   align-items: center;
   gap: 6px;
   transition: all 0.18s ease;
-  letter-spacing: 0.1px;
+  white-space: nowrap;
 }
 
+.cs-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
 .cs-btn-primary {
-  background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
+  background: linear-gradient(135deg, #6366f1, #8b5cf6);
   color: #fff;
-  box-shadow: 0 2px 10px rgba(99,102,241,0.35);
+  box-shadow: 0 2px 10px rgba(99,102,241,0.3);
 }
-.cs-btn-primary:hover {
-  box-shadow: 0 4px 16px rgba(99,102,241,0.5);
+.cs-btn-primary:hover:not(:disabled) {
+  box-shadow: 0 4px 16px rgba(99,102,241,0.45);
   transform: translateY(-1px);
 }
-.cs-btn-primary:active { transform: translateY(0); }
 
 .cs-btn-secondary {
   background: rgba(255,255,255,0.05);
   color: #94a3b8;
-  border: 1px solid rgba(255,255,255,0.07);
+  border: 1px solid rgba(255,255,255,0.08);
 }
-.cs-btn-secondary:hover {
-  background: rgba(255,255,255,0.09);
+.cs-btn-secondary:hover:not(:disabled) {
+  background: rgba(255,255,255,0.08);
   color: #e2e8f0;
-  border-color: rgba(255,255,255,0.12);
 }
 
 .cs-btn-danger {
-  background: rgba(239,68,68,0.15);
-  color: #f87171;
-  border: 1px solid rgba(239,68,68,0.2);
-}
-.cs-btn-danger:hover {
-  background: rgba(239,68,68,0.25);
-  box-shadow: 0 0 10px rgba(239,68,68,0.2);
-}
-
-/* ── 文章列表 ── */
-.cs-article-list {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-}
-
-.cs-article-row {
-  background: rgba(255,255,255,0.02);
-  border: 1px solid rgba(255,255,255,0.05);
-  border-radius: 12px;
-  padding: 16px 20px;
-  display: flex;
-  align-items: center;
-  gap: 16px;
-  transition: all 0.2s ease;
-  position: relative;
-}
-
-.cs-article-row::before {
-  content: '';
-  position: absolute;
-  left: 0; top: 50%;
-  transform: translateY(-50%);
-  width: 3px;
-  height: 0;
-  border-radius: 0 3px 3px 0;
-  transition: height 0.2s ease;
-}
-
-.cs-article-row[data-status="draft"]::before { background: #64748b; }
-.cs-article-row[data-status="review"]::before { background: #f59e0b; }
-.cs-article-row[data-status="published"]::before { background: #10b981; }
-.cs-article-row[data-status="rejected"]::before { background: #ef4444; }
-
-.cs-article-row:hover {
-  background: rgba(255,255,255,0.04);
-  border-color: rgba(99,102,241,0.3);
-  transform: translateX(2px);
-  box-shadow: 0 4px 16px rgba(0,0,0,0.2);
-}
-
-.cs-article-row:hover::before { height: 60%; }
-
-/* ── 平台标签 ── */
-.cs-article-platform {
-  font-size: 11px;
-  font-weight: 700;
-  padding: 4px 9px;
-  border-radius: 6px;
-  flex-shrink: 0;
-  letter-spacing: 0.3px;
-  text-transform: uppercase;
-}
-
-.cs-platform-wechat {
-  background: linear-gradient(135deg, #07c160, #06ad56);
-  color: #fff;
-  box-shadow: 0 2px 8px rgba(7,193,96,0.3);
-}
-.cs-platform-xiaohongshu {
-  background: linear-gradient(135deg, #fe2c55, #e8203f);
-  color: #fff;
-  box-shadow: 0 2px 8px rgba(254,44,85,0.3);
-}
-.cs-platform-douyin {
-  background: linear-gradient(135deg, #00f2ea, #00c9d4);
-  color: #1a1a1a;
-  box-shadow: 0 2px 8px rgba(0,242,234,0.3);
-}
-.cs-platform-other {
-  background: linear-gradient(135deg, #6366f1, #8b5cf6);
-  color: #fff;
-  box-shadow: 0 2px 8px rgba(99,102,241,0.3);
-}
-
-/* ── 文章主体 ── */
-.cs-article-body { flex: 1; min-width: 0; }
-
-.cs-article-title {
-  font-size: 15px;
-  font-weight: 600;
-  color: #e2e8f0;
-  margin-bottom: 6px;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  letter-spacing: -0.1px;
-}
-
-.cs-article-meta {
-  font-size: 12px;
-  color: #475569;
-  display: flex;
-  gap: 16px;
-  flex-wrap: wrap;
-  align-items: center;
-}
-
-.cs-article-meta span {
-  display: inline-flex;
-  align-items: center;
-  gap: 3px;
-}
-
-.cs-article-tags {
-  display: flex;
-  gap: 6px;
-  flex-wrap: wrap;
-  margin-top: 8px;
-}
-
-.cs-tag {
-  font-size: 11px;
-  background: rgba(99,102,241,0.12);
-  color: #a5b4fc;
-  padding: 2px 9px;
-  border-radius: 20px;
-  border: 1px solid rgba(99,102,241,0.2);
-  font-weight: 500;
-}
-
-.cs-summary {
-  margin-top: 7px;
-  font-size: 12px;
-  color: #475569;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  line-height: 1.5;
-}
-
-/* ── 状态徽章 ── */
-.cs-status-badge {
-  font-size: 11px;
-  font-weight: 600;
-  padding: 3px 9px;
-  border-radius: 20px;
-  flex-shrink: 0;
-  letter-spacing: 0.2px;
-}
-
-.cs-status-draft {
-  background: rgba(100,116,139,0.15);
-  color: #94a3b8;
-  border: 1px solid rgba(100,116,139,0.2);
-}
-.cs-status-review {
-  background: rgba(245,158,11,0.12);
-  color: #fbbf24;
-  border: 1px solid rgba(245,158,11,0.2);
-}
-.cs-status-published {
-  background: rgba(16,185,129,0.12);
-  color: #34d399;
-  border: 1px solid rgba(16,185,129,0.2);
-}
-.cs-status-rejected {
   background: rgba(239,68,68,0.12);
   color: #f87171;
   border: 1px solid rgba(239,68,68,0.2);
 }
-
-/* ── 操作按钮 ── */
-.cs-article-actions {
-  display: flex;
-  gap: 6px;
-  flex-shrink: 0;
-}
-
-/* ── 详情展开 ── */
-.cs-article-detail {
-  background: linear-gradient(135deg, rgba(99,102,241,0.06) 0%, rgba(139,92,246,0.06) 100%);
-  border: 1px solid rgba(99,102,241,0.15);
-  border-radius: 12px;
-  padding: 18px 22px;
-  margin-top: 12px;
-}
-
-.cs-article-detail strong { color: #a5b4fc; }
-.cs-article-detail p {
-  color: #64748b;
-  font-size: 13px;
-  line-height: 1.8;
-  margin: 0 0 8px;
-}
-
-.cs-article-detail code {
-  background: rgba(255,255,255,0.06);
-  padding: 2px 7px;
-  border-radius: 4px;
-  font-size: 11px;
-  color: #94a3b8;
+.cs-btn-danger:hover:not(:disabled) {
+  background: rgba(239,68,68,0.2);
 }
 
 /* ── 弹窗 ── */
 .cs-modal-overlay {
   position: fixed;
   inset: 0;
-  background: rgba(0,0,0,0.7);
-  backdrop-filter: blur(4px);
+  background: rgba(0,0,0,0.72);
+  backdrop-filter: blur(5px);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -374,67 +529,75 @@
 }
 
 .cs-modal {
-  background: linear-gradient(145deg, #1a2235 0%, #1e2740 100%);
+  background: linear-gradient(145deg, #161c2c 0%, #1a2238 100%);
   border: 1px solid rgba(255,255,255,0.08);
   border-radius: 18px;
   width: 100%;
-  max-width: 760px;
-  max-height: 85vh;
+  max-width: 780px;
+  max-height: 88vh;
   overflow-y: auto;
-  box-shadow: 0 24px 64px rgba(0,0,0,0.5), 0 0 0 1px rgba(99,102,241,0.1);
+  box-shadow: 0 32px 80px rgba(0,0,0,0.55), 0 0 0 1px rgba(99,102,241,0.08);
 }
 
+.cs-modal::-webkit-scrollbar { width: 4px; }
+.cs-modal::-webkit-scrollbar-thumb { background: #2a3441; border-radius: 4px; }
+
 .cs-modal-header {
-  padding: 22px 26px 18px;
+  padding: 22px 26px 16px;
   border-bottom: 1px solid rgba(255,255,255,0.06);
   display: flex;
   justify-content: space-between;
   align-items: center;
+  position: sticky;
+  top: 0;
+  background: inherit;
+  z-index: 1;
 }
 
 .cs-modal-header h3 {
   margin: 0;
   font-size: 17px;
   font-weight: 700;
-  color: #f1f5f9;
+  color: #e2e8f0;
   letter-spacing: -0.2px;
 }
 
-.cs-modal-body { padding: 22px 26px; }
+.cs-modal-body { padding: 20px 26px; }
 
 .cs-form-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 16px;
+  gap: 14px;
 }
 
 .cs-form-grid .cs-full { grid-column: 1 / -1; }
 
-.cs-form-group { margin-bottom: 14px; }
+.cs-form-group { display: flex; flex-direction: column; }
 
 .cs-form-group label {
-  display: block;
-  font-size: 12px;
-  font-weight: 600;
-  color: #64748b;
+  font-size: 11.5px;
+  font-weight: 700;
+  color: #475569;
   margin-bottom: 6px;
-  letter-spacing: 0.4px;
+  letter-spacing: 0.5px;
   text-transform: uppercase;
 }
 
 .cs-form-group input,
 .cs-form-group select,
 .cs-form-group textarea {
-  width: 100%;
   background: rgba(255,255,255,0.04);
   border: 1px solid rgba(255,255,255,0.08);
   border-radius: 8px;
   padding: 9px 13px;
   color: #e2e8f0;
   font-size: 13px;
-  box-sizing: border-box;
   transition: border-color 0.2s, box-shadow 0.2s;
+  resize: vertical;
 }
+
+.cs-form-group input::placeholder,
+.cs-form-group textarea::placeholder { color: #475569; }
 
 .cs-form-group input:focus,
 .cs-form-group select:focus,
@@ -444,33 +607,13 @@
   box-shadow: 0 0 0 3px rgba(99,102,241,0.12);
 }
 
-.cs-form-group textarea { resize: vertical; min-height: 88px; }
-
 .cs-modal-footer {
-  padding: 16px 26px;
+  padding: 14px 26px;
   border-top: 1px solid rgba(255,255,255,0.06);
   display: flex;
   justify-content: flex-end;
   gap: 10px;
-}
-
-/* ── 空状态 ── */
-.cs-empty {
-  text-align: center;
-  padding: 72px 20px;
-  color: #475569;
-  font-size: 14px;
-}
-
-.cs-empty-icon {
-  font-size: 48px;
-  margin-bottom: 14px;
-  display: block;
-  filter: grayscale(0.3);
-}
-
-.cs-empty p {
-  color: #475569;
-  font-size: 13px;
-  line-height: 1.7;
+  position: sticky;
+  bottom: 0;
+  background: inherit;
 }
