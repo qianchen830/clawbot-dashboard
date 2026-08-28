@@ -58,7 +58,19 @@ function fmt(ts) {
 
 function wordCount(text) {
   if (!text) return 0
-  return text.trim().split(/\s+/).filter(Boolean).length
+  // 统计中文字符数（不含 frontmatter ---...--- 区段）
+  const lines = text.split('\n')
+  let body = ''
+  let inFm = false
+  for (const line of lines) {
+    if (line.trim() === '---') { inFm = !inFm; continue }
+    if (!inFm) body += line
+  }
+  // 中文字符 + 英文单词混排时，英文单词按空格折算
+  const chinese = (body.match(/[\u4e00-\u9fff]/g) || []).length
+  const english = (body.match(/[a-zA-Z]+/g) || []).join(' ')
+  const englishWords = english.trim() ? english.trim().split(/\s+/).length : 0
+  return chinese + englishWords
 }
 
 // ── 左侧：状态 Tab + 列表 ───────────────────────────────────────────────────
@@ -128,6 +140,7 @@ function ListItem({ article, active, onSelect }) {
       <div className="cs-item-foot">
         {article.author && <span className="cs-item-ai"><User size={9}/>{article.author}</span>}
         <span className="cs-item-ai"><Clock size={9}/>{fmt(article.publish_time || article.created_at)}</span>
+        {article.content && <span className="cs-item-ai"><FileIcon size={9}/>{wordCount(article.content)}字</span>}
       </div>
       {article.tags && (
         <div className="cs-item-tags">
@@ -189,7 +202,7 @@ function ReadView({ article, onEdit, onNew }) {
         <div className="cs-article-body-lbl">正文</div>
         <div className="cs-article-body">
           {article.content ? (
-            <div className="cs-article-text">{article.content}</div>
+            <div className="cs-article-text" dangerouslySetInnerHTML={{ __html: article.content }} />
           ) : article.content_path ? (
             <div className="cs-article-link">
               <Link as_={LinkIcon} size={13}/>

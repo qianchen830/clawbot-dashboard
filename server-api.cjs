@@ -9,6 +9,19 @@ const app = express()
 app.use(cors())
 app.use(express.json())
 
+// 静态serve图文图片（article_images/ 对外暴露为 /images/）
+const ARTICLE_IMG_DIR = '/home/openclaw/.openclaw/workspace/clawbot-dashboard/article_images'
+app.get('/images/:filename', (req, res) => {
+  const fpath = path.join(ARTICLE_IMG_DIR, req.params.filename)
+  if (!fpath.startsWith(ARTICLE_IMG_DIR)) return res.status(403).send('Forbidden')
+  if (!fs.existsSync(fpath)) return res.status(404).send('Not Found')
+  res.setHeader('Content-Type', 'image/jpeg')
+  fs.createReadStream(fpath).pipe(res)
+})
+
+// 前端 dist 静态文件（必须注册在所有 API 路由之前）
+app.use(express.static(path.join(__dirname, 'dist')))
+
 function execCmd(cmd) {
   return new Promise((resolve, reject) => {
     const trimmed = cmd.trim()
@@ -280,6 +293,7 @@ app.get('/api/service-status', async (req, res) => {
 
 const CATEGORIES = {
   '自研技能': ['self-built-placeholder'],
+  '公众号': ['wechat', '公众号', 'humanizer', 'wenyan', 'baoyu-post', 'blog-pipeline', 'image-generator'],
   '金蝶ERP': ['kingdee', 'kd-', '金蝶', 'erp', '苍穹', '星瀚'],
   '短视频': ['video', '抖音', '快手', 'bili', 'bilibili', '视频', '字幕'],
   '内容创作': ['content', 'writing', '创作', '文案', 'seo', '小红书', 'social'],
@@ -289,6 +303,7 @@ const CATEGORIES = {
   '代码': ['git', 'code', 'audit', 'ci/cd', 'cicd'],
   '知识管理': ['knowledge', 'memory', 'note'],
   '自动化': ['automation', 'workflow', '自动化'],
+  '3D打印': ['bambu', 'print3d', 'stl', '3d print', 'filament', 'ams', 'slicer', 'slice', 'cadquery', 'parametric', 'hitem3d', 'find-stl', 'kiln', 'x2d', '拓竹'],
 }
 
 // 自研技能白名单：ClawBot从零开发 或 基于第三方技能深度改造的，都加到这里
@@ -306,6 +321,14 @@ const SELF_BUILT = new Set([
   'video-publisher',  // 基于第三方改造
   'kingdee-master-plan',
   'kingdee-master-plan-v1.0.0',
+  // 3D打印技能包
+  'print3d-workflow',
+  'bambu-studio-ai',
+  'hitem3d',
+  'find-stl',
+  'openclaw-3d-printing-skill',
+  'kiln',
+  'cad-agent',
 ])
 
 // 自研技能在 ClawBot 技能库中的增强说明：用于弹窗展示完整功能边界，避免只显示一句短描述。
@@ -325,6 +348,14 @@ const SELF_BUILT_DESCRIPTIONS = {
   'html-flowchart-generator': '系统集成通用PNG流程图生成技能。用于业务流程图、系统集成图、接口流向图和业务数据流向图，适配ERP、WMS、MES、PLM、OA、银企、国资委、数据中台和第三方平台等集成场景；默认只输出PNG，明确要求时才输出SVG/HTML/源文件。支持金蝶官方风格和现代科技风，采用真实中文字体渲染，强调中文清晰、线条可读、逻辑优先、客户材料可直接使用；严格不生成报价单、不生成报价明细、不做人天估算、不做商务报价。',
   'kingdee-master-plan': '金蝶项目总体计划生成技能。根据项目模块范围和关键里程碑（启动、调研、蓝图确认、开发、上线、验收），自动推理每个任务节点的起止时间，生成符合金蝶V10.0交付规范的总体计划Excel，支持增删节点，适合项目经理制定项目时间表。',
   'video-publisher': '短视频多平台发布与数据统计技能。支持抖音、快手、B站、小红书、视频号、YouTube等平台的发布管理和数据汇总，适合短视频账号运营、内容分发、播放/点赞/评论数据追踪与复盘。',
+  // ── 3D打印技能包 ──────────────────────────────────────────────
+  'print3d-workflow': '拓竹 X2D 3D打印完整自动化流水线。整合模型搜索/AI生成/参数化建模→网格修复→切片→人工审核→打印监控→飞书通知。全程人工审核闸门，不自动执行任何有风险操作。支持 find-stl 搜索 Printables、bambu-studio-ai 文生3D/图生3D/多色彩、openclaw-3d-printing-skill 参数化 CAD、实时 MQTT 打印机监控（暂停/恢复/调速/摄像头快照）。',
+  'bambu-studio-ai': 'Bambu Lab 全系打印机控制技能（支持 A1/X1C/P1S/X2D 等9款机型）。功能：模型搜索(MakerWorld/Thingiverse/Thangs)、AI文生3D(Meshy/Tripo)、STL分析修复、CLI切片、多色彩 AMS 处理、实时打印监控+摄像头快照、打印机控制(暂停/恢复/调速/灯光)。本地 MQTT 模式直连拓竹 X2D（端口 6000），无需云端。',
+  'hitem3d': '图转3D技能。将产品照片、人物图片、概念图转换为可打印 STL/GLB/USDZ 模型。支持单图/多视角/批量处理，智能识别纹理和几何结构，适合产品原型、角色手办、AR 展示场景。需配置 HITEM3D_AK/HITEM3D_SK。',
+  'find-stl': '模型搜索下载技能。从 Printables 搜索并下载免费 STL/3MF 模型，自动记录作者/许可证/文件哈希，输出本地文件夹+manifest.json，适合快速获取成熟设计方案。',
+  'openclaw-3d-printing-skill': 'CadQuery 参数化3D建模技能。设计支架、外壳、适配器、夹具等有精确尺寸要求的功能零件，输出 STL/3MF，保证壁厚/公差/拔模角度正确，支持预览渲染和打印可行性验证，适合工业零件批量定制。',
+  'kiln': '3D打印多品牌控制 MCP 服务器（901个工具+239条命令）。支持 Bambu Lab/OctoPrint/Moonraker(Klipper)/Creality/Prusa Link/Elegoo Saturn。通过 MCP 协议统一管控多台打印机、搜索模型市场、文生3D、切片、队列管理、摄像头监控和故障检测。',
+  'cad-agent': '参数化 CAD 建模 Agent。基于 Build123d/CadQuery 生成可打印 STL，校验公差/壁厚/支撑，支持支架/外壳/孔位等精确尺寸零件，输出模型+预览图+打印参数建议。',
 }
 
 function selfBuiltDescription(name) {
@@ -374,7 +405,19 @@ app.get('/api/skills', async (req, res) => {
     const installedKeys = new Set()
     try {
       const dirs = execSync(`ls "${SKILL_DIR}"`).toString().trim().split('\n').filter(Boolean)
+      // 展开 @scope 子目录（如 @0731coderlee-sudo/wechat-publisher）为完整路径
+      const expanded = []
       for (const name of dirs) {
+        if (name.startsWith('@')) {
+          try {
+            const subs = execSync(`ls "${SKILL_DIR}/${name}"`).toString().trim().split('\n').filter(Boolean)
+            for (const sub of subs) expanded.push(`${name}/${sub}`)
+          } catch {}
+        } else {
+          expanded.push(name)
+        }
+      }
+      for (const name of expanded) {
         const skillFile = `${SKILL_DIR}/${name}/SKILL.md`
         try {
           let content = execSync(`cat "${skillFile}" 2>/dev/null`).toString()
@@ -1913,8 +1956,9 @@ function detectRisk(skill) {
   return 'MEDIUM'
 }
 
-// 技能自动归类
+// 技能自动归类（公众号优先于内容创作/AI模型，避免 blog-pipeline、image-generator 被抢走）
 const CATEGORY_RULES = [
+  { cat: '公众号', kws: ['wechat', '公众号', 'humanizer', 'wenyan', 'baoyu-post', 'blog-pipeline', 'image-generator'] },
   { cat: '金蝶ERP', kws: ['kingdee', 'kd-', '金蝶', 'erp', '苍穹', '星瀚'] },
   { cat: '短视频', kws: ['video', '抖音', '快手', 'bili', 'bilibili', '视频', '字幕', 'shortvideo'] },
   { cat: '内容创作', kws: ['content', 'writing', '创作', '文案', 'seo', '小红书', 'social', 'blog'] },
@@ -2378,6 +2422,18 @@ app.get('/api/content/articles', (req, res) => {
     sql += ' ORDER BY updated_at DESC'
     const rows = db.prepare(sql).all(...params)
     db.close()
+    // 列表返回时也渲染图片预览（用于卡片里的图）
+    for (const row of rows) {
+      if (row.content) {
+        row.content = row.content.replace(
+          /!\[([^\]]*)\]\((article_images\/[^)]+)\)/g,
+          (_, alt, path) => `<img src="/images/${path.replace('article_images/','')}" alt="${alt}" style="max-width:100%;border-radius:6px;margin:12px 0;"/>`
+        ).replace(
+          /!\[([^\]]*)\]\((\/images\/[^)]+)\)/g,
+          (_, alt, path) => `<img src="${path}" alt="${alt}" style="max-width:100%;border-radius:6px;margin:12px 0;"/>`
+        )
+      }
+    }
     res.json(rows)
   } catch (e) {
     res.status(500).json({ error: e.message })
@@ -2390,7 +2446,18 @@ app.get('/api/content/articles/:id', (req, res) => {
     const db = getArticlesDb()
     const row = db.prepare('SELECT * FROM articles WHERE id = ?').get(req.params.id)
     db.close()
+    console.log('content type:', typeof row.content, 'len:', (row.content||'').length)
     if (!row) return res.status(404).json({ error: '文章不存在' })
+    // 把 markdown 图片语法渲染为 <img> 标签，供预览使用
+    if (row.content) {
+      row.content = row.content.replace(
+        /!\[([^\]]*)\]\((article_images\/[^)]+)\)/g,
+        (_, alt, path) => `<img src="/images/${path.replace('article_images/','')}" alt="${alt}" style="max-width:100%;border-radius:6px;margin:12px 0;"/>`
+      ).replace(
+        /!\[([^\]]*)\]\((\/images\/[^)]+)\)/g,
+        (_, alt, path) => `<img src="${path}" alt="${alt}" style="max-width:100%;border-radius:6px;margin:12px 0;"/>`
+      )
+    }
     res.json(row)
   } catch (e) {
     res.status(500).json({ error: e.message })
@@ -2400,13 +2467,13 @@ app.get('/api/content/articles/:id', (req, res) => {
 // POST /api/content/articles
 app.post('/api/content/articles', (req, res) => {
   try {
-    const { title, platform, status, author, tags, summary, content_path, publish_time, remark } = req.body
+    const { title, platform, status, author, tags, summary, content, content_path, publish_time, remark, style, cover_url } = req.body
     if (!title) return res.status(400).json({ error: '标题不能为空' })
     const db = getArticlesDb()
     const result = db.prepare(`
-      INSERT INTO articles (title, platform, status, author, tags, summary, content_path, publish_time, remark)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `).run(title, platform||'wechat', status||'draft', author||'', tags||'', summary||'', content_path||'', publish_time||null, remark||'')
+      INSERT INTO articles (title, platform, status, author, tags, summary, content, content_path, publish_time, remark, style, cover_url)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(title, platform||'wechat', status||'draft', author||'', tags||'', summary||'', content||'', content_path||'', publish_time||null, remark||'', style||null, cover_url||null)
     db.close()
     res.json({ id: result.lastInsertRowid, message: '创建成功' })
   } catch (e) {
@@ -2418,14 +2485,14 @@ app.post('/api/content/articles', (req, res) => {
 app.put('/api/content/articles/:id', (req, res) => {
   try {
     const { id } = req.params
-    const { title, platform, status, author, tags, summary, content, content_path, publish_time, remark } = req.body
+    const { title, platform, status, author, tags, summary, content, content_path, publish_time, remark, style, cover_url } = req.body
     const db = getArticlesDb()
     db.prepare(`
       UPDATE articles SET
         title=?, platform=?, status=?, author=?, tags=?, summary=?,
-        content=?, content_path=?, publish_time=?, remark=?, updated_at=CURRENT_TIMESTAMP
+        content=?, content_path=?, publish_time=?, remark=?, style=?, cover_url=?, updated_at=CURRENT_TIMESTAMP
       WHERE id=?
-    `).run(title, platform, status, author, tags, summary, content, content_path, publish_time, remark, id)
+    `).run(title, platform, status, author, tags, summary, content, content_path, publish_time, remark, style||null, cover_url||null, id)
     db.close()
     res.json({ message: '更新成功' })
   } catch (e) {
@@ -2445,7 +2512,11 @@ app.delete('/api/content/articles/:id', (req, res) => {
   }
 })
 
-const PORT = 3001
+const PORT = (() => {
+  const idx = process.argv.indexOf('--port')
+  if (idx >= 0 && process.argv[idx + 1]) return parseInt(process.argv[idx + 1])
+  return 3001
+})()
 
 // 启动时初始化 ClawHub 数据库
 try { initClawhubDb() } catch (e) { console.error('[clawhub] DB init error:', e.message) }
