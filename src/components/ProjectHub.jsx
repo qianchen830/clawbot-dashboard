@@ -67,7 +67,7 @@ const PROJECTS = [
   },
   {
     id: 'presale',
-    name: '售前管理网站',
+    name: '售前管理网站（旧版）',
     description: '售前阶段的项目信息管理、客户跟踪、方案报价（前后端共用3210）',
     port: 3210,
     localUrl: 'http://localhost:3210',
@@ -85,6 +85,20 @@ const PROJECTS = [
     productionBranch: 'main',
     productionGitRemote: 'production',
     lastDeployTime: 1787722800000, // 2026-08-26 16:40:00 CST
+  },
+  {
+    id: 'presale-new',
+    name: '售前管理系统（新版）',
+    description: '售前阶段的项目信息管理、客户跟踪、方案报价（前后端分离架构）',
+    port: 8082,
+    localUrl: 'http://localhost:8082',
+    gitPath: '/home/openclaw/.openclaw/workspace/webdev-projects/presale-new/SHouQ',
+    branch: 'clean-main',
+    tunnelPort: 8082,
+    tunnelUrl: '',
+    autoStart: false,
+    startCmd: 'cd /home/openclaw/.openclaw/workspace/webdev-projects/presale-new/SHouQ && NODE_PATH=./node_modules DATABASE_URL="postgresql://shouq:***@localhost:5435/shouq" POSTGRES_HOST=localhost POSTGRES_PORT=5435 REDIS_HOST=localhost REDIS_PORT=6382 MINIO_ENDPOINT=localhost:9012 MINIO_ACCESS_KEY=*** MINIO_SECRET_KEY=shouq_secret QDRANT_HOST=localhost QDRANT_PORT=6333 node packages/server/dist/index.js > /tmp/shouq-server.log 2>&1 &',
+    stopPorts: [3010, 8082],
   },
 ]
 
