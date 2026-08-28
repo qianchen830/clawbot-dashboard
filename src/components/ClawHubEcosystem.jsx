@@ -11,7 +11,11 @@ const SORT_OPTIONS = [
   { value: 'updated_at', label: '🕐 最新更新' },
 ]
 
-const CATEGORIES = ['全部', '公众号', '金蝶ERP', '短视频', '内容创作', 'AI模型', '效率工具', '浏览器', '代码', '知识管理', '自动化', '其他']
+const CATEGORIES = [
+  '全部', '自研技能', '金蝶交付', '金蝶开发', '短视频', '3D打印', '图文制作',
+  'AI游戏', '网页开发', '财经', '主控台', '审查',
+  '公众号', '内容创作', 'AI模型', '效率工具', '浏览器', '代码', '知识管理', '自动化', '其他'
+]
 const RISK_FILTERS = ['全部', 'LOW', 'MEDIUM', 'HIGH', 'EXTREME']
 
 const RISK_LABELS = { LOW: '🟢 低风险', MEDIUM: '🟡 中风险', HIGH: '🔴 高风险', EXTREME: '⛔ 极高风险' }

@@ -291,19 +291,58 @@ app.get('/api/service-status', async (req, res) => {
   }
 })
 
-const CATEGORIES = {
-  '自研技能': ['self-built-placeholder'],
-  '公众号': ['wechat', '公众号', 'humanizer', 'wenyan', 'baoyu-post', 'blog-pipeline', 'image-generator'],
-  '金蝶ERP': ['kingdee', 'kd-', '金蝶', 'erp', '苍穹', '星瀚'],
-  '短视频': ['video', '抖音', '快手', 'bili', 'bilibili', '视频', '字幕'],
-  '内容创作': ['content', 'writing', '创作', '文案', 'seo', '小红书', 'social'],
-  'AI模型': ['image', 'tts', 'voice', 'speech', 'translate', '翻译', 'gemini'],
-  '效率工具': ['excel', 'docx', 'word', 'ppt', 'chart', 'pdf', '文档', '表格'],
-  '浏览器': ['browser', 'browser-use', 'automation', 'agent-browser'],
-  '代码': ['git', 'code', 'audit', 'ci/cd', 'cicd'],
-  '知识管理': ['knowledge', 'memory', 'note'],
-  '自动化': ['automation', 'workflow', '自动化'],
-  '3D打印': ['bambu', 'print3d', 'stl', '3d print', 'filament', 'ams', 'slicer', 'slice', 'cadquery', 'parametric', 'hitem3d', 'find-stl', 'kiln', 'x2d', '拓竹'],
+// ── 技能多标签分类引擎（2026-08-28 重构）──────────────────────────
+// 结构：实例专用分类（对应各实例，可多命中）+ 自研技能标签 + 功能性标签（最多补2个）
+// 规则：实例分类只匹配技能名，避免描述文本误伤（excel-xlsx 曾被错分到短视频）；
+//      ASCII 短关键词按词边界匹配（erp/ams/stl 不会误伤无关词）
+const INSTANCE_CATEGORIES = [
+  { cat: '金蝶交付', kws: ['kingdee', 'kd', '金蝶', '云星空', '星空', 'erp', '星瀚', '凭证', 'sow', 'quotation', '报价', 'meeting-minutes', '会议纪要', 'gap-analysis', '差异分析', 'interface-list', 'requirements-transform', '需求转换', 'bid-outline', '标书', 'master-plan', 'desensitization', '脱敏'] },
+  { cat: '金蝶开发', kws: ['cosmic', '苍穹', '插件', 'plugin', '二次开发', 'script-api', 'customdev', 'ks语言'] },
+  { cat: '短视频', kws: ['douyin', '抖音', 'tiktok', 'bilibili', 'bili', '快手', 'kuaishou', 'capcut', '剪映', 'video', '视频', '字幕', 'subtitle', 'shortvideo', '口播', 'clips', 'transcribe'] },
+  { cat: '3D打印', kws: ['bambu', '拓竹', 'print3d', 'stl', 'filament', 'ams', 'slicer', 'slice', 'cadquery', 'cad', 'hitem3d', 'kiln', 'x2d', '3mf', '3d'] },
+  { cat: '图文制作', kws: ['image-generator', '海报', 'poster', '配图', '图片', 'imagen', 'upscale', 'flux', 'stable-diffusion', 'midjourney', '封面', 'cover', '排版'] },
+  { cat: 'AI游戏', kws: ['game', '游戏', 'unity', 'unreal', 'npc', '关卡'] },
+  { cat: '网页开发', kws: ['react', 'vue', 'frontend', '前端', 'nextjs', 'nuxt', 'tailwind', 'fullstack', 'webdev', 'web-dev', '网页'] },
+  { cat: '财经', kws: ['finance', 'financial', '财经', 'stock', '股票', '行情', '财报', '投资', 'investment', '宏观'] },
+  { cat: '主控台', kws: ['orchestrator', 'task-tracker', 'session-resume', 'session-continuity', 'session-handoff', 'auto-updater', 'find-skills', 'dispatch', 'agent-memory', 'heartbeat'] },
+  { cat: '审查', kws: ['audit', '审核', 'review', 'moderation', '审查'] },
+]
+const FUNCTIONAL_CATEGORIES = [
+  { cat: '公众号', kws: ['wechat', '公众号', 'humanizer', 'wenyan', 'baoyu', 'blog-pipeline', 'multi-post'] },
+  { cat: '效率工具', kws: ['excel', 'docx', 'word', 'ppt', 'pdf', 'chart', '文档', '表格', 'calendar', 'xlsx', 'document', 'report', '报表'] },
+  { cat: '浏览器', kws: ['browser', 'selenium', 'playwright', 'puppeteer'] },
+  { cat: '代码', kws: ['git', 'code', 'cicd', 'debug', 'sql', '编程', 'developer'] },
+  { cat: '知识管理', kws: ['knowledge', 'memory', 'note', '知识', '笔记'] },
+  { cat: '自动化', kws: ['automation', 'workflow', '自动化', 'rpa', 'scheduler', 'cron'] },
+  { cat: 'AI模型', kws: ['tts', 'voice', 'speech', 'translate', '翻译', 'gemini', 'openai', 'llm', 'gpt', 'claude', 'deepseek'] },
+  { cat: '内容创作', kws: ['content', 'writing', '创作', '文案', 'seo', '小红书', 'social', 'blog', '写作', 'copywriting'] },
+]
+
+function matchKw(text, kw) {
+  const k = String(kw).toLowerCase()
+  if (/[^\x00-\x7f]/.test(k)) return text.includes(k)
+  const esc = k.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+  return new RegExp(`(?:^|[^a-z0-9])${esc}(?:[^a-z0-9]|$)`).test(text)
+}
+
+// 多标签：实例分类(可多个) + 自研技能 + 功能标签(≤2)；主分类取第一个
+function detectCategories(name, desc) {
+  const norm = normalizeSkillName(name)
+  const nameLc = String(name).toLowerCase()
+  const cats = []
+  for (const { cat, kws } of INSTANCE_CATEGORIES) {
+    if (kws.some(k => matchKw(nameLc, k))) cats.push(cat)
+  }
+  if (SELF_BUILT.has(name) || SELF_BUILT.has(norm)) cats.push('自研技能')
+  const fullText = `${name} ${desc || ''}`.toLowerCase()
+  const funcCats = []
+  for (const { cat, kws } of FUNCTIONAL_CATEGORIES) {
+    if (funcCats.length >= 2) break
+    if (kws.some(k => matchKw(fullText, k))) funcCats.push(cat)
+  }
+  const all = [...new Set([...cats, ...funcCats])]
+  if (!all.length) all.push('其他')
+  return { category: all[0], categories: all }
 }
 
 // 自研技能白名单：ClawBot从零开发 或 基于第三方技能深度改造的，都加到这里
@@ -365,12 +404,7 @@ function selfBuiltDescription(name) {
 }
 
 function detectCategory(name, desc) {
-  if (SELF_BUILT.has(name)) return '自研技能'
-  const text = (name + ' ' + desc).toLowerCase()
-  for (const [cat, kws] of Object.entries(CATEGORIES)) {
-    if (kws.some(k => text.includes(k.toLowerCase()))) return cat
-  }
-  return '其他'
+  return detectCategories(name, desc).category
 }
 
 function classifySource(name, author) {
@@ -493,12 +527,14 @@ app.get('/api/skills', async (req, res) => {
           const author = am ? am[1].trim() : (om ? om[1].trim() : '')
           const source = classifySource(name, author)
           installedKeys.add(normalizeSkillName(name))
+          const catg = detectCategories(name, desc)
           installed.push({
             name,
             description: desc,
             version: ver,
             author,
-            category: detectCategory(name, desc),
+            category: catg.category,
+            categories: catg.categories,
             source,
             isZip: false,
             path: `${SKILL_DIR}/${name}`,
@@ -666,14 +702,14 @@ app.use('/capcut-mate', async (req, res) => {
   }
 })
 
-// ── 售前管理网站反向代理 ────────────────────────────────────────────────
+// ── 售前管理系统（新版）反向代理 ──────────────────────────────────────
 app.use('/presale/api', (req, res) => {
   const options = {
     hostname: 'localhost',
-    port: 3210,
+    port: 3010,
     path: '/api' + req.url,
     method: req.method,
-    headers: { ...req.headers, host: 'localhost:3210' },
+    headers: { ...req.headers, host: 'localhost:3001' },
   }
   const proxyReq = http.request(options, (proxyRes) => {
     res.writeHead(proxyRes.statusCode, proxyRes.headers)
@@ -686,10 +722,10 @@ app.use('/presale/api', (req, res) => {
 app.use('/presale', (req, res) => {
   const options = {
     hostname: 'localhost',
-    port: 3210,
+    port: 8082,
     path: req.url,
     method: req.method,
-    headers: { ...req.headers, host: 'localhost:3210' },
+    headers: { ...req.headers, host: 'localhost:8082' },
   }
   const proxyReq = http.request(options, (proxyRes) => {
     res.writeHead(proxyRes.statusCode, proxyRes.headers)
@@ -1021,7 +1057,8 @@ const GIT_REPOS = [
   { name: '金蝶交付系统', path: '/mnt/d/kingdee-web', github: 'kingdee-web' },
   { name: 'Agent Bridge', path: '/home/openclaw/.openclaw/workspace/agent-bridge/bridge', github: 'agent-bridge' },
   { name: 'Fleet Controller', path: '/home/openclaw/.openclaw/workspace/plugins/fleet-controller', github: 'fleet-controller' },
-  { name: '售前管理网站', path: '/home/openclaw/.openclaw/workspace/webdev-projects/presale', github: 'presale-webdev' },
+  { name: '售前管理系统（新版）', path: '/home/openclaw/.openclaw/workspace/webdev-projects/presale-new/SHouQ', github: 'presale-webdev' },
+  { name: '售前管理网站（旧版）', path: '/home/openclaw/.openclaw/workspace/webdev-projects/presale', github: 'presale-webdev' },
 ]
 
 function gitExec(args, cwd) {
@@ -1956,26 +1993,9 @@ function detectRisk(skill) {
   return 'MEDIUM'
 }
 
-// 技能自动归类（公众号优先于内容创作/AI模型，避免 blog-pipeline、image-generator 被抢走）
-const CATEGORY_RULES = [
-  { cat: '公众号', kws: ['wechat', '公众号', 'humanizer', 'wenyan', 'baoyu-post', 'blog-pipeline', 'image-generator'] },
-  { cat: '金蝶ERP', kws: ['kingdee', 'kd-', '金蝶', 'erp', '苍穹', '星瀚'] },
-  { cat: '短视频', kws: ['video', '抖音', '快手', 'bili', 'bilibili', '视频', '字幕', 'shortvideo'] },
-  { cat: '内容创作', kws: ['content', 'writing', '创作', '文案', 'seo', '小红书', 'social', 'blog'] },
-  { cat: 'AI模型', kws: ['image', 'tts', 'voice', 'speech', 'translate', '翻译', 'gemini', 'openai', 'llm'] },
-  { cat: '效率工具', kws: ['excel', 'docx', 'word', 'ppt', 'chart', 'pdf', '文档', '表格', 'calendar'] },
-  { cat: '浏览器', kws: ['browser', 'browser-use', 'browser-automation', 'selenium', 'playwright'] },
-  { cat: '代码', kws: ['git', 'code', 'audit', 'ci/cd', 'cicd', 'debug', 'test'] },
-  { cat: '知识管理', kws: ['knowledge', 'memory', 'note', '知识', '笔记'] },
-  { cat: '自动化', kws: ['automation', 'workflow', '自动化', 'auto'] },
-]
-
+// 技能自动归类（多标签引擎，与本地技能库共用一套规则）
 function autoCategory(skill) {
-  const text = `${skill.slug} ${skill.displayName} ${skill.summary || ''}`.toLowerCase()
-  for (const { cat, kws } of CATEGORY_RULES) {
-    if (kws.some(k => text.includes(k))) return cat
-  }
-  return '其他'
+  return detectCategories(skill.slug, `${skill.displayName || ''} ${skill.summary || ''}`).category
 }
 
 // ── GET /api/clawhub/skills ────────────────────────────────────
@@ -1994,10 +2014,6 @@ app.get('/api/clawhub/skills', (req, res) => {
       const like = `%${q}%`
       args.push(like, like, like, like)
     }
-    if (category && category !== '全部') {
-      sql += ' AND category = ?'
-      args.push(category)
-    }
     if (risk && risk !== '全部') {
       sql += ' AND risk_level = ?'
       args.push(risk)
@@ -2010,11 +2026,30 @@ app.get('/api/clawhub/skills', (req, res) => {
     const ord = order === 'asc' ? 'ASC' : 'DESC'
     sql += ` ORDER BY ${sortCol} ${ord}`
 
-    sql += ' LIMIT ? OFFSET ?'
-    args.push(parseInt(limit) || 30, parseInt(offset) || 0)
+    // 分类过滤改为 JS 多标签匹配（categories 动态计算，支持一技能多分类）
+    const withCats = (rows) => rows.map(s => {
+      // 注意：name 必须是纯 slug，SELF_BUILT 白名单按完整技能名匹配
+      const c = detectCategories(s.slug, `${s.display_name || ''} ${s.summary || ''}`)
+      return {
+        ...s,
+        category: c.category !== '其他' ? c.category : (s.category || '其他'),
+        categories: c.category !== '其他' ? c.categories : [...new Set([s.category, ...c.categories].filter(Boolean))],
+      }
+    })
 
-    const skills = db.prepare(sql).all(...args)
-    const total = db.prepare('SELECT COUNT(*) FROM skills').get()['COUNT(*)']
+    let skills, total
+    if (category && category !== '全部') {
+      const all = withCats(db.prepare(sql).all(...args))
+      const filtered = all.filter(s => (s.categories || []).includes(category) || s.category === category)
+      total = filtered.length
+      const off = parseInt(offset) || 0
+      skills = filtered.slice(off, off + (parseInt(limit) || 30))
+    } else {
+      sql += ' LIMIT ? OFFSET ?'
+      args.push(parseInt(limit) || 30, parseInt(offset) || 0)
+      skills = withCats(db.prepare(sql).all(...args))
+      total = db.prepare('SELECT COUNT(*) FROM skills').get()['COUNT(*)']
+    }
     db.close()
 
     res.json({

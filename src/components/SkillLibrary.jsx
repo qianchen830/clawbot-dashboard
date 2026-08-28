@@ -13,8 +13,9 @@ const SOURCE_CONFIG = {
 }
 
 const CATEGORIES = [
-  '全部', '自研技能', '公众号', '金蝶ERP', '短视频', '内容创作', 'AI模型',
-  '效率工具', '浏览器', '代码', '知识管理', '自动化', '其他'
+  '全部', '自研技能', '金蝶交付', '金蝶开发', '短视频', '3D打印', '图文制作',
+  'AI游戏', '网页开发', '财经', '主控台', '审查',
+  '公众号', '内容创作', 'AI模型', '效率工具', '浏览器', '代码', '知识管理', '自动化', '其他'
 ]
 const SOURCES = ['全部', '自研', '第三方', '官方/厂商', 'F:技能']
 
@@ -76,7 +77,7 @@ export default function SkillLibrary() {
       const hit = fields.some(v => v.includes(q)) || (qNormalized && fields.some(v => v.includes(qNormalized)))
       if (!hit) return false
     }
-    if (category !== '全部' && item.category !== category) return false
+    if (category !== '全部' && !(item.categories?.includes(category) || item.category === category)) return false
     if (source !== '全部' && item.source !== source) return false
     return true
   }
@@ -213,9 +214,9 @@ export default function SkillLibrary() {
                 </div>
                 <div className="sl-card-desc">{skill.description}</div>
                 <div className="sl-card-footer">
-                  {skill.category && skill.category !== '其他' && (
-                    <span className="sl-card-cat">{skill.category}</span>
-                  )}
+                  {(skill.categories || (skill.category && skill.category !== '其他' ? [skill.category] : [])).slice(0, 3).map(c => (
+                    <span key={c} className="sl-card-cat">{c}</span>
+                  ))}
                   {skill.version && <span className="sl-card-ver">v{skill.version}</span>}
                   <ChevronRight size={14} className="sl-card-arrow" />
                 </div>
@@ -237,10 +238,10 @@ export default function SkillLibrary() {
               <button className="sl-modal-close" onClick={() => setSelected(null)}>×</button>
             </div>
             <div className="sl-modal-body">
-              {selected.category && selected.category !== '其他' && (
+              {(selected.categories || (selected.category ? [selected.category] : [])).filter(c => c && c !== '其他').length > 0 && (
                 <div className="sl-modal-row">
                   <span className="sl-modal-label">分类</span>
-                  <span className="sl-modal-value">{selected.category}</span>
+                  <span className="sl-modal-value">{(selected.categories || [selected.category]).filter(c => c && c !== '其他').join(' / ')}</span>
                 </div>
               )}
               {selected.version && (
