@@ -12,7 +12,6 @@ import ClawHubEcosystem from './components/ClawHubEcosystem'
 import DeliveryCockpit from './components/DeliveryCockpit'
 import StatusBar from './components/StatusBar'
 import FleetCluster from './components/FleetCluster'
-import TokenUsage from './components/TokenUsage'
 import ContentStudio from './components/ContentStudio'
 import Toast from './components/Toast'
 import { useState, useEffect } from 'react'
@@ -61,8 +60,6 @@ export default function App() {
         return <ClawHubEcosystem />
       case 'fleet':
         return <FleetCluster />
-      case 'token':
-        return <TokenUsage />
       case 'content':
         return <ContentStudio />
       case 'delivery':

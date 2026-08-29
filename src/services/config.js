@@ -84,7 +84,7 @@ export const API_BASE = ''
 // 获取学习推送状态
 export async function fetchLearningStatus() {
   try {
-    const resp = await fetch(`${API_BASE}/api/status`)
+    const resp = await fetch(`${API_BASE}/api/learning/status`)
     if (!resp.ok) throw new Error('API失败')
     return await resp.json()
   } catch (e) {
