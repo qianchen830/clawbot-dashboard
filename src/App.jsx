@@ -13,6 +13,8 @@ import DeliveryCockpit from './components/DeliveryCockpit'
 import StatusBar from './components/StatusBar'
 import FleetCluster from './components/FleetCluster'
 import ContentStudio from './components/ContentStudio'
+import LearningStudio from './components/LearningStudio'
+import PracticeStudio from './components/PracticeStudio'
 import Toast from './components/Toast'
 import { useState, useEffect } from 'react'
 import './App.css'
@@ -62,6 +64,10 @@ export default function App() {
         return <FleetCluster />
       case 'content':
         return <ContentStudio />
+      case 'selflearning':
+        return <LearningStudio />
+      case 'practice':
+        return <PracticeStudio />
       case 'delivery':
         return <DeliveryCockpit />
       case 'projects':

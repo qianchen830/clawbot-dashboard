@@ -305,6 +305,7 @@ const INSTANCE_CATEGORIES = [
   { cat: '财经', kws: ['finance', 'financial', '财经', 'stock', '股票', '行情', '财报', '投资', 'investment', '宏观'] },
   { cat: '主控台', kws: ['orchestrator', 'task-tracker', 'session-resume', 'session-continuity', 'session-handoff', 'auto-updater', 'find-skills', 'dispatch', 'agent-memory', 'heartbeat'] },
   { cat: '审查', kws: ['audit', '审核', 'review', 'moderation', '审查'] },
+  { cat: '海外社交', kws: ['twitter', 'youtube', 'reddit', 'tiktok', 'discord', 'telegram', 'x-hots', 'godfery', 'oo-', 'taizi', 'reddit-communities', 'reddit-scraper', 'reddit-readonly', 'oo-discord', 'taizi-discord', 'telegram-api', 'telegram-messaging', 'baoyu-youtube-transcript', 'youtube-transcript-skill'] },
 ]
 const FUNCTIONAL_CATEGORIES = [
   { cat: '公众号', kws: ['wechat', '公众号', 'humanizer', 'wenyan', 'baoyu', 'blog-pipeline', 'multi-post'] },
@@ -315,6 +316,7 @@ const FUNCTIONAL_CATEGORIES = [
   { cat: '自动化', kws: ['automation', 'workflow', '自动化', 'rpa', 'scheduler', 'cron'] },
   { cat: 'AI模型', kws: ['tts', 'voice', 'speech', 'translate', '翻译', 'gemini', 'openai', 'llm', 'gpt', 'claude', 'deepseek'] },
   { cat: '内容创作', kws: ['content', 'writing', '创作', '文案', 'seo', '小红书', 'social', 'blog', '写作', 'copywriting'] },
+  { cat: '联网搜索', kws: ['tavily', 'web-search', 'web-content', 'browser-act', 'use-my-browser', 'free-web', 'reddit-scraper', 'reddit-readonly', 'tiktok-crawl', 'web-search-free', 'web-content-fetcher', 'browser-automation-puppeteer'] },
 ]
 
 function matchKw(text, kw) {
@@ -643,6 +645,190 @@ app.get('/api/learning/detail/:id', (req, res) => {
 
 app.get('/api/learning/search/:kw', (req, res) => {
   res.json(runLearningDb(`search "${req.params.kw}"`))
+})
+
+// ==================== 自主学习模块（实例每日复盘 → 共享记忆库 → Hermes） ====================
+// 数据源：~/.shared-memory/lessons.db（各实例 cron 写入，此处只读）
+const LESSONS_DB = require('path').join(require('os').homedir(), '.shared-memory/lessons.db')
+
+function getLessonsDb() {
+  const Database = require('better-sqlite3')
+  return new Database(LESSONS_DB, { readonly: true, fileMustExist: true })
+}
+
+// 本地日期(Asia/Shanghai) → UTC 查询边界
+function localDateToUtcRange(dateStr) {
+  const start = new Date(dateStr + 'T00:00:00+08:00')
+  const end = new Date(dateStr + 'T00:00:00+08:00')
+  end.setDate(end.getDate() + 1)
+  return [start.toISOString().slice(0, 19).replace('T', ' '), end.toISOString().slice(0, 19).replace('T', ' ')]
+}
+
+function todayLocal() {
+  const now = new Date(Date.now() + 8 * 3600 * 1000)
+  return now.toISOString().slice(0, 10)
+}
+
+// 实例概览：每个实例的今日状态/总数/最后学习时间
+app.get('/api/selflearning/overview', (req, res) => {
+  let db
+  try { db = getLessonsDb() } catch (e) { return res.json({ ok: true, instances: [], dates: [] }) }
+  const [ts, te] = localDateToUtcRange(todayLocal())
+  const rows = db.prepare(`
+    SELECT instance,
+      COUNT(*) as total,
+      MAX(created_at) as last_at,
+      SUM(CASE WHEN created_at >= ? AND created_at < ? THEN 1 ELSE 0 END) as today_count
+    FROM lessons GROUP BY instance ORDER BY instance`).all(ts, te)
+  const dates = db.prepare(`
+    SELECT DISTINCT substr(datetime(created_at, '+8 hours'), 1, 10) as d
+    FROM lessons ORDER BY d DESC LIMIT 60`).all().map(r => r.d)
+  db.close()
+  res.json({ ok: true, instances: rows, today: todayLocal(), dates })
+})
+
+// 学习记录列表：date（默认今天）+ instance（可选）
+app.get('/api/selflearning/lessons', (req, res) => {
+  const date = (req.query.date || todayLocal()).slice(0, 10)
+  const instance = req.query.instance || ''
+  let db
+  try { db = getLessonsDb() } catch (e) { return res.json({ ok: true, date, lessons: [], error: 'db-not-found' }) }
+  const [ts, te] = localDateToUtcRange(date)
+  let rows
+  if (instance) {
+    rows = db.prepare(`SELECT * FROM lessons WHERE created_at >= ? AND created_at < ? AND instance = ? ORDER BY created_at DESC`).all(ts, te, instance)
+  } else {
+    rows = db.prepare(`SELECT * FROM lessons WHERE created_at >= ? AND created_at < ? ORDER BY created_at DESC`).all(ts, te)
+  }
+  db.close()
+  res.json({ ok: true, date, lessons: rows })
+})
+
+// Hermes 联动：把指定日期的 lessons 汇总写入 Hermes 记忆目录
+app.post('/api/selflearning/sync-hermes', (req, res) => {
+  const date = (req.query.date || req.body?.date || todayLocal()).slice(0, 10)
+  let db
+  try { db = getLessonsDb() } catch (e) { return res.status(500).json({ ok: false, error: 'lessons.db 不存在' }) }
+  const [ts, te] = localDateToUtcRange(date)
+  const rows = db.prepare(`SELECT * FROM lessons WHERE created_at >= ? AND created_at < ? ORDER BY instance, created_at`).all(ts, te)
+  db.close()
+  if (!rows.length) return res.json({ ok: false, error: `${date} 无学习记录，未同步` })
+  const dir = require('path').join(os.homedir(), '.hermes/memories/openclaw')
+  const fs = require('fs')
+  fs.mkdirSync(dir, { recursive: true })
+  const file = require('path').join(dir, `daily-lessons-${date}.md`)
+  let md = `# 实例自主学习汇总 ${date}\n\n> 由 ClawBot 自主学习模块自动生成，来源：lessons.db\n\n`
+  const byInst = {}
+  rows.forEach(r => { (byInst[r.instance] = byInst[r.instance] || []).push(r) })
+  Object.keys(byInst).sort().forEach(inst => {
+    md += `## ${inst}\n\n`
+    byInst[inst].forEach(r => {
+      md += `- **[${r.outcome}]** ${r.insight}\n`
+      if (r.tags) md += `  - 标签：${r.tags}\n`
+    })
+    md += '\n'
+  })
+  md += `---\n共 ${rows.length} 条 | 涉及实例：${Object.keys(byInst).join(', ')} | 同步时间：${new Date().toISOString()}\n`
+  fs.writeFileSync(file, md, 'utf8')
+  res.json({ ok: true, file, count: rows.length, instances: Object.keys(byInst) })
+})
+
+// ==================== 任务练习模块 ====================
+const PRACTICE_DB = require('path').join(require('os').homedir(), '.shared-memory', 'practice.db')
+
+function getPracticeDb() {
+  const Database = require('better-sqlite3')
+  return new Database(PRACTICE_DB, { readonly: true, fileMustExist: true })
+}
+
+app.get('/api/practice/tasks', (req, res) => {
+  const instance = req.query.instance || ''
+  const status = req.query.status || ''
+  let db
+  try { db = getPracticeDb() } catch (e) { return res.json({ ok: true, tasks: [], instances: [] })}
+  let rows, instances
+  if (instance) {
+    if (status) {
+      rows = db.prepare('SELECT * FROM practice_tasks WHERE instance=? AND status=? ORDER BY created_at DESC').all(instance, status)
+    } else {
+      rows = db.prepare('SELECT * FROM practice_tasks WHERE instance=? ORDER BY created_at DESC').all(instance)
+    }
+    instances = [instance]
+  } else {
+    if (status) {
+      rows = db.prepare('SELECT * FROM practice_tasks WHERE status=? ORDER BY created_at DESC').all(status)
+    } else {
+      rows = db.prepare('SELECT * FROM practice_tasks ORDER BY created_at DESC LIMIT 200').all()
+    }
+    instances = [...new Set(rows.map(r => r.instance))].sort()
+  }
+  db.close()
+  res.json({ ok: true, tasks: rows, instances })
+})
+
+app.get('/api/practice/overview', (req, res) => {
+  let db
+  try { db = getPracticeDb() } catch (e) { return res.json({ ok: true, stats: [] }) }
+  const rows = db.prepare(`
+    SELECT instance,
+      COUNT(*) as total,
+      SUM(CASE WHEN status='done' THEN 1 ELSE 0 END) as done,
+      SUM(CASE WHEN status='pending' THEN 1 ELSE 0 END) as pending,
+      SUM(CASE WHEN status='expired' THEN 1 ELSE 0 END) as expired,
+      MAX(executed_at) as last_at
+    FROM practice_tasks GROUP BY instance ORDER BY instance
+  `).all()
+  db.close()
+  res.json({ ok: true, stats: rows })
+})
+
+app.post('/api/practice/generate', (req, res) => {
+  const { execSync } = require('child_process')
+  try {
+    const out = execSync('python3 /tmp/setup_practice_system.py 2>&1', { encoding: 'utf8', timeout: 30000 })
+    res.json({ ok: true, output: out })
+  } catch (e) {
+    res.json({ ok: false, error: e.message })
+  }
+})
+
+// 读取练习报告文件内容
+app.get('/api/practice/file', (req, res) => {
+  const { file } = req.query
+  if (!file) { res.json({ ok: false, error: 'missing file param' }); return }
+  try {
+    const fs = require('fs')
+    const path = require('path')
+    const safePath = path.resolve(file)
+    // 验证路径在允许范围内
+    const allowedDirs = [
+      require('path').resolve(process.env.HOME + '/.openclaw/instances'),
+      require('path').resolve(process.env.HOME + '/.openclaw/workspace'),
+    ]
+    const inAllowed = allowedDirs.some(d => safePath.startsWith(d))
+    if (!inAllowed) { res.json({ ok: false, error: 'path not allowed' }); return }
+    if (!fs.existsSync(safePath)) { res.json({ ok: false, error: 'file not found' }); return }
+    const stat = fs.statSync(safePath)
+    if (stat.size > 512000) { res.json({ ok: false, error: 'file too large (>500KB)' }); return }
+    const content = fs.readFileSync(safePath, 'utf8')
+    res.json({ ok: true, content, size: stat.size, mtime: stat.mtime })
+  } catch (e) {
+    res.json({ ok: false, error: e.message })
+  }
+})
+
+// 清理过期练习文件（保留已完成任务的 output_file，只删除过期任务的临时文件）
+app.post('/api/practice/cleanup', (req, res) => {
+  const { execSync } = require('child_process')
+  try {
+    const out = execSync('python3 /tmp/cleanup_practice.py 2>&1', { encoding: 'utf8', timeout: 30000 })
+    const parts = out.trim().split('|')
+    const deleted = parseInt(parts[0]) || 0
+    const freed = parseInt(parts[1]) || 0
+    res.json({ ok: true, deleted, freed: Math.round(freed / 1024) })
+  } catch (e) {
+    res.json({ ok: false, error: e.message })
+  }
 })
 
 // 手动触发服务守护脚本
