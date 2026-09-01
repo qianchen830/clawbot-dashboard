@@ -112,7 +112,7 @@ function InstanceCard({ inst, onSave, onRefresh }) {
             <button className="fc-btn sm" title="复制 Token" onClick={() => { navigator.clipboard.writeText(inst.gateway_token || ''); toast('Token 已复制') }}>
               <Copy size={13}/> Token
             </button>
-            <a className="fc-btn sm" href={`http://localhost:${inst.port}/`} target="_blank" rel="noreferrer">
+            <a className="fc-btn sm" href={`http://localhost:${inst.port}/#token=${encodeURIComponent(inst.gateway_token || '')}`} target="_blank" rel="noreferrer">
               <ExternalLink size={13}/> 控制台
             </a>
             {isWslHost && !isMaster && !isModeration && (
