@@ -292,31 +292,33 @@ app.get('/api/service-status', async (req, res) => {
 
 // ── 技能多标签分类引擎（2026-08-28 重构）──────────────────────────
 // 结构：实例专用分类（对应各实例，可多命中）+ 自研技能标签 + 功能性标签（最多补2个）
-// 规则：实例分类只匹配技能名，避免描述文本误伤（excel-xlsx 曾被错分到短视频）；
-//      ASCII 短关键词按词边界匹配（erp/ams/stl 不会误伤无关词）
+// ── 实例专用分类（严格对应各实例专职能力，匹配技能名避免误伤）───────────
+// 规则：只匹配技能名，不匹配描述；ASCII 短关键词按词边界匹配（erp/ams/stl 不误伤）
 const INSTANCE_CATEGORIES = [
-  { cat: '金蝶交付', kws: ['kingdee', 'kd', '金蝶', '云星空', '星空', 'erp', '星瀚', '凭证', 'sow', 'quotation', '报价', 'meeting-minutes', '会议纪要', 'gap-analysis', '差异分析', 'interface-list', 'requirements-transform', '需求转换', 'bid-outline', '标书', 'master-plan', 'desensitization', '脱敏'] },
+  { cat: '金蝶交付', kws: ['kingdee', 'kd', '金蝶', '云星空', '星空', '星瀚', '凭证', 'sow', 'quotation', '报价', 'meeting-minutes', '会议纪要', 'gap-analysis', '差异分析', 'interface-list', 'requirements-transform', '需求转换', 'bid-outline', '标书', 'master-plan', 'desensitization', '脱敏', 'erp-integration', 'erp-szpm', 'erpclaw', 'kdclub', 'quality-manager', 'qmr'] },
   { cat: '金蝶开发', kws: ['cosmic', '苍穹', '插件', 'plugin', '二次开发', 'script-api', 'customdev', 'ks语言'] },
-  { cat: '短视频', kws: ['douyin', '抖音', 'tiktok', 'bilibili', 'bili', '快手', 'kuaishou', 'capcut', '剪映', 'video', '视频', '字幕', 'subtitle', 'shortvideo', '口播', 'clips', 'transcribe'] },
-  { cat: '3D打印', kws: ['bambu', '拓竹', 'print3d', 'stl', 'filament', 'ams', 'slicer', 'slice', 'cadquery', 'cad', 'hitem3d', 'kiln', 'x2d', '3mf', '3d'] },
-  { cat: '图文制作', kws: ['image-generator', '海报', 'poster', '配图', '图片', 'imagen', 'upscale', 'flux', 'stable-diffusion', 'midjourney', '封面', 'cover', '排版'] },
-  { cat: 'AI游戏', kws: ['game', '游戏', 'unity', 'unreal', 'npc', '关卡'] },
-  { cat: '网页开发', kws: ['react', 'vue', 'frontend', '前端', 'nextjs', 'nuxt', 'tailwind', 'fullstack', 'webdev', 'web-dev', '网页'] },
-  { cat: '财经', kws: ['finance', 'financial', '财经', 'stock', '股票', '行情', '财报', '投资', 'investment', '宏观'] },
-  { cat: '主控台', kws: ['orchestrator', 'task-tracker', 'session-resume', 'session-continuity', 'session-handoff', 'auto-updater', 'find-skills', 'dispatch', 'agent-memory', 'heartbeat'] },
-  { cat: '审查', kws: ['audit', '审核', 'review', 'moderation', '审查'] },
-  { cat: '海外社交', kws: ['twitter', 'youtube', 'reddit', 'tiktok', 'discord', 'telegram', 'x-hots', 'godfery', 'oo-', 'taizi', 'reddit-communities', 'reddit-scraper', 'reddit-readonly', 'oo-discord', 'taizi-discord', 'telegram-api', 'telegram-messaging', 'baoyu-youtube-transcript', 'youtube-transcript-skill'] },
+  { cat: '短视频', kws: ['douyin', '抖音', 'tiktok', 'bilibili', 'bili', '快手', 'kuaishou', 'capcut', '剪映', 'shortvideo', '口播', 'clips', 'jx-video', 'martin-video', 'toby-video', 'baby-growth-video'] },
+  { cat: '3D打印', kws: ['bambu', '拓竹', 'print3d', 'filament', 'ams', 'slicer', 'slice', 'cadquery', 'hitem3d', 'kiln', 'x2d', '3mf'] },
+  { cat: 'AI游戏', kws: ['game', '游戏', 'unity', 'unreal', 'npc', '关卡', 'nuwa', 'remotion', 'sag'] },
+  { cat: '网页开发', kws: ['react', 'vue', 'frontend', '前端', 'nextjs', 'nuxt', 'tailwind', 'fullstack', 'webdev', 'web-dev', '网页', 'ui-ux'] },
+  { cat: '主控台', kws: ['orchestrator', 'task-tracker', 'session-resume', 'session-continuity', 'session-handoff', 'auto-updater', 'find-skills', 'dispatch', 'agent-memory', 'heartbeat', 'multi-agent', 'openclaw-super', 'self-improving', 'skill-gateway'] },
+  { cat: '审查', kws: ['audit', '审核', 'review', 'moderation', '审查', 'security-auditor'] },
+  { cat: '训练员', kws: ['training', '训练', 'evaluat', 'skill-vetter', 'lesson'] },
 ]
+// ── 功能标签分类（跨实例通用能力）──────────────────────────────────────
 const FUNCTIONAL_CATEGORIES = [
-  { cat: '公众号', kws: ['wechat', '公众号', 'humanizer', 'wenyan', 'baoyu', 'blog-pipeline', 'multi-post'] },
-  { cat: '效率工具', kws: ['excel', 'docx', 'word', 'ppt', 'pdf', 'chart', '文档', '表格', 'calendar', 'xlsx', 'document', 'report', '报表'] },
-  { cat: '浏览器', kws: ['browser', 'selenium', 'playwright', 'puppeteer'] },
-  { cat: '代码', kws: ['git', 'code', 'cicd', 'debug', 'sql', '编程', 'developer'] },
-  { cat: '知识管理', kws: ['knowledge', 'memory', 'note', '知识', '笔记'] },
-  { cat: '自动化', kws: ['automation', 'workflow', '自动化', 'rpa', 'scheduler', 'cron'] },
-  { cat: 'AI模型', kws: ['tts', 'voice', 'speech', 'translate', '翻译', 'gemini', 'openai', 'llm', 'gpt', 'claude', 'deepseek'] },
-  { cat: '内容创作', kws: ['content', 'writing', '创作', '文案', 'seo', '小红书', 'social', 'blog', '写作', 'copywriting'] },
-  { cat: '联网搜索', kws: ['tavily', 'web-search', 'web-content', 'browser-act', 'use-my-browser', 'free-web', 'reddit-scraper', 'reddit-readonly', 'tiktok-crawl', 'web-search-free', 'web-content-fetcher', 'browser-automation-puppeteer'] },
+  { cat: '公众号', kws: ['wechat', '公众号', 'humanizer', 'wenyan', 'baoyu', 'blog-pipeline', 'multi-post', 'baoyu-post', 'wechat-article', 'xhs-image'] },
+  { cat: '图文制作', kws: ['image-generator', 'image-generation', '海报', 'poster', '配图', '图片', 'imagen', 'upscale', 'flux', 'stable-diffusion', 'midjourney', '封面', 'cover', '排版', '图生', 'image'] },
+  { cat: '内容创作', kws: ['content', 'writing', '创作', '文案', 'seo', '小红书', 'social', 'blog', '写作', 'copywriting', 'xiaohongshu', 'douyin-skill', 'short-video-script', 'digital-hunter', 'marketing-advisor', 'mixpost'] },
+  { cat: '效率工具', kws: ['excel', 'docx', 'word', 'ppt', 'pdf', 'chart', '文档', '表格', 'calendar', 'xlsx', 'document', 'report', '报表', 'wps', 'office', 'c-disk', 'data-validation', 'data-visualization', 'dev-project', 'email-reader', 'meeting-to-action', 'project-tracker', 'risk-assessment', 'windows-system', 'kai-html'] },
+  { cat: '浏览器', kws: ['browser', 'selenium', 'playwright', 'puppeteer', 'browser-automation', 'ego-browser', 'use-my-browser', 'browser-use', 'browser-act', 'openclaw-agent'] },
+  { cat: '代码', kws: ['git', 'cicd', 'debug', 'sql', '编程', 'developer', 'code-audit', 'git-'] },
+  { cat: '知识管理', kws: ['knowledge', 'memory', 'note', '知识', '笔记', 'ai-intelligent-knowledge', 'chinese'] },
+  { cat: '自动化', kws: ['automation', 'workflow', '自动化', 'rpa', 'scheduler', 'cron', 'agentic', 'api-integration', 'runninghub'] },
+  { cat: 'AI模型', kws: ['tts', 'voice', 'speech', 'translate', '翻译', 'gemini', 'openai', 'llm', 'gpt', 'claude', 'deepseek', 'minimax', 'zhipu', 'fireworks', 'ponytail', 'vectcut'] },
+  { cat: '联网搜索', kws: ['tavily', 'web-search', 'web-content', 'free-web', 'tiktok-crawl', 'web-search-free', 'web-content-fetcher', 'deep-search-mpro'] },
+  { cat: '财经', kws: ['finance', 'financial', '财经', 'stock', '股票', '行情', '财报', '投资', 'investment', '宏观', 'regulatory-news'] },
+  { cat: '海外社交', kws: ['twitter', 'youtube', 'reddit', 'discord', 'telegram', 'x-hots', 'godfery', 'oo-', 'taizi', 'reddit-communities', 'reddit-scraper', 'reddit-readonly', 'oo-discord', 'taizi-discord', 'telegram-api', 'telegram-messaging', 'baoyu-youtube-transcript', 'youtube-transcript-skill'] },
 ]
 
 function matchKw(text, kw) {
@@ -351,6 +353,7 @@ function detectCategories(name, desc) {
 const SELF_BUILT = new Set([
   'kingdee-delivery', 'gap-analysis-table', '差异分析表生成', 'interface-list-generator',
   'Kingdee-meeting-minutes-v2.0.0', 'REQUIREMENTS-transform-v2.0.0',
+  'kingdee-req-spec-generator', 'kingdee-req-spec-generator-v3.2.0',
   'bid-outline-generator-v2.0.0', 'cosmic-customdev-design-doc-v1.0.0',
   'simple-text-weekly-report',
   'weekly-report-excel',
