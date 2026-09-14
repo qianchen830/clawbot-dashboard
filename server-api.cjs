@@ -707,6 +707,23 @@ app.get('/api/selflearning/lessons', (req, res) => {
   res.json({ ok: true, date, lessons: rows })
 })
 
+// 任务级复盘记录：date（默认今天）+ task_id（可选精确查）
+app.get('/api/selflearning/task-reviews', (req, res) => {
+  const date = (req.query.date || todayLocal()).slice(0, 10)
+  const taskId = req.query.task_id || ''
+  let db
+  try { db = getLessonsDb() } catch (e) { return res.json({ ok: true, date, reviews: [], error: 'db-not-found' }) }
+  let rows
+  if (taskId) {
+    rows = db.prepare(`SELECT * FROM task_review WHERE task_id = ? ORDER BY created_at DESC`).all(taskId)
+  } else {
+    const [ts, te] = localDateToUtcRange(date)
+    rows = db.prepare(`SELECT * FROM task_review WHERE created_at >= ? AND created_at < ? ORDER BY created_at DESC`).all(ts, te)
+  }
+  db.close()
+  res.json({ ok: true, date, reviews: rows })
+})
+
 // Hermes 联动：把指定日期的 lessons 汇总写入 Hermes 记忆目录
 app.post('/api/selflearning/sync-hermes', (req, res) => {
   const date = (req.query.date || req.body?.date || todayLocal()).slice(0, 10)

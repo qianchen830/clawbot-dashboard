@@ -79,6 +79,32 @@ function FilePreview({ filePath }) {
   )
 }
 
+function ReviewSection({ taskId }) {
+  const [reviews, setReviews] = useState(null)
+  useEffect(() => {
+    let alive = true
+    fetch(`/api/selflearning/task-reviews?task_id=${encodeURIComponent(taskId)}`)
+      .then(r => r.json())
+      .then(j => { if (alive) setReviews(j.reviews || []) })
+      .catch(() => { if (alive) setReviews([]) })
+    return () => { alive = false }
+  }, [taskId])
+  if (reviews === null || reviews.length === 0) return null
+  return (
+    <div className="pt-detail-section">
+      <div className="pt-section-label">🛡️ 审查员复盘（{reviews.length}条）</div>
+      {reviews.map((r, i) => (
+        <div key={i} className="pt-section-body" style={{ marginBottom: 8 }}>
+          <div>{r.success ? '✅' : '❌'} {r.summary}</div>
+          {r.root_cause && <div style={{ color: '#d93025', fontSize: 12, marginTop: 2 }}>根因：{r.root_cause}</div>}
+          {r.lessons && <div style={{ color: '#5f6368', fontSize: 12, marginTop: 2 }}>经验：{r.lessons}</div>}
+          {r.routing_suggestion && <div style={{ color: '#1a73e8', fontSize: 12, marginTop: 2 }}>调度建议：{r.routing_suggestion}</div>}
+        </div>
+      ))}
+    </div>
+  )
+}
+
 function TaskDetail({ task, onClose }) {
   const meta = INSTANCE_META[task.instance] || {}
 
@@ -105,6 +131,7 @@ function TaskDetail({ task, onClose }) {
           </span>
           <span className="pt-meta-item">📅 生成：{fmtFull(task.created_at)}</span>
           {task.executed_at && <span className="pt-meta-item">🏃 执行：{fmtFull(task.executed_at)}</span>}
+          {task.score != null && <span className="pt-meta-item">🛡️ 审查：{task.score}/5</span>}
         </div>
 
         {/* 任务描述 */}
@@ -126,6 +153,9 @@ function TaskDetail({ task, onClose }) {
           </div>
         )}
 
+        {/* 审查员复盘 */}
+        <ReviewSection taskId={String(task.id)} />
+
         {/* 任务信息 */}
         <div className="pt-detail-section">
           <div className="pt-section-label">🏷️ 任务信息</div>
@@ -142,7 +172,7 @@ function TaskDetail({ task, onClose }) {
 
         {(!task.output_file && !task.result) && (
           <div className="pt-detail-section">
-            <div className="pt-empty-output">⏳ 任务待执行，报告将在 10:00 cron 触发后生成</div>
+            <div className="pt-empty-output">⏳ 任务待执行，报告将在 10:15 练习执行器运行后生成</div>
           </div>
         )}
       </div>
@@ -243,10 +273,11 @@ export default function PracticeStudio() {
         <div className="pt-sidebar-footer">
           <div className="pt-schedule">
             <div className="pt-sched-title">⏰ 调度时间</div>
-            <div>05:00 Hermes同步</div>
-            <div>10:00 执行练习</div>
-            <div>14:00 主动学习</div>
-            <div>22:30 每日复盘</div>
+            <div>05:00 Hermes深度复盘</div>
+            <div>10:15 执行练习</div>
+            <div>11:00 审查员审查</div>
+            <div>13-15:40 隔天学习</div>
+            <div>22:40+ 错峰复盘</div>
           </div>
         </div>
       </aside>
@@ -289,7 +320,7 @@ export default function PracticeStudio() {
           <div className="pt-empty">
             <div className="pt-empty-icon">🎯</div>
             <div>没有符合条件的任务</div>
-            <small>试试切换筛选条件，或等待 10:00 生成新任务</small>
+            <small>试试切换筛选条件，或等待 09:00 生成新任务</small>
           </div>
         ) : (
           <div className="pt-task-list">
@@ -322,6 +353,9 @@ export default function PracticeStudio() {
 
                   <div className="pt-task-footer">
                     <span className="pt-task-id">#{t.id}</span>
+                    {t.score != null && (
+                      <span style={{ fontSize: 11, color: t.score >= 3 ? '#188038' : '#d93025' }}>🛡️ {t.score}/5</span>
+                    )}
                     <span className="pt-task-view">查看详情 →</span>
                   </div>
                 </div>

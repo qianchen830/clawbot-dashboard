@@ -100,6 +100,20 @@ const PROJECTS = [
     startCmd: 'cd /home/openclaw/.openclaw/workspace/webdev-projects/presale-new/SHouQ && NODE_PATH=./node_modules DATABASE_URL="postgresql://shouq:***@localhost:5435/shouq" POSTGRES_HOST=localhost POSTGRES_PORT=5435 REDIS_HOST=localhost REDIS_PORT=6382 MINIO_ENDPOINT=localhost:9012 MINIO_ACCESS_KEY=*** MINIO_SECRET_KEY=shouq_secret QDRANT_HOST=localhost QDRANT_PORT=6333 node packages/server/dist/index.js > /tmp/shouq-server.log 2>&1 &',
     stopPorts: [3010, 8082],
   },
+  {
+    id: 'kian-app',
+    name: 'AI成长系统（kian-app）',
+    description: '宝贝乐园 AI 成长系统 — 任务系统、积分商城、健康管理、红包抽奖',
+    port: 9091,
+    localUrl: 'http://localhost:9091',
+    gitPath: '/home/openclaw/.openclaw/instances/webdev/.openclaw/state/workspace/projects',
+    branch: 'master',
+    tunnelPort: 9091,
+    tunnelUrl: '',
+    autoStart: true,
+    startCmd: `cd /home/openclaw/.openclaw/instances/webdev/.openclaw/state/workspace/projects && COZE_SUPABASE_URL=http://127.0.0.1:3010 COZE_SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJyb2xlIjoicG9zdGdyZXMiLCJpc3MiOiJzdXBhYmFzZSIsImV4cCI6MTgyMDkxNTA2MX0.ZSdkPjoiwCYSEKVZkMr_40PkJNeYn3pOMiZgUnk_Bp0 COZE_SUPABASE_SERVICE_ROLE_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJyb2xlIjoicG9zdGdyZXMiLCJpc3MiOiJzdXBhYmFzZSIsImV4cCI6MTgyMDkxNTA2MX0.ZSdkPjoiwCYSEKVZkMr_40PkJNeYn3pOMiZgUnk_Bp0 PORT=9091 NODE_ENV=development node server/dist/index.js > /tmp/kian-server.log 2>&1 &`,
+    stopPorts: [9091],
+  },
 ]
 
 // ── 工具函数 ─────────────────────────────────────────────────────
