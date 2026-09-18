@@ -952,8 +952,8 @@ app.use('/presale', (req, res) => {
 
 // ── Fleet 实例集群 API ────────────────────────────────────────────────────
 const FLEET_INSTANCES_DIRS = [
-  '/home/openclaw/docker-openclaw/instances',
   '/home/openclaw/.openclaw/instances',
+  '/home/openclaw/docker-openclaw/instances',
 ]
 
 // 实时从飞书 API 获取应用名称
@@ -1049,7 +1049,9 @@ function loadFleetInstances() {
         const meta = JSON.parse(fs.readFileSync(metaPath, 'utf8'))
         let feishu_app_id = '', feishu_app_secret = '', feishu_connected = false, gateway_token = ''
         let model_info = null
-        const instCfgPath = `${FLEET_INSTANCES_DIR}/${id}/.openclaw/openclaw.json`
+        const instCfgPath1 = `${FLEET_INSTANCES_DIR}/${id}/.openclaw/openclaw.json`
+        const instCfgPath2 = `${FLEET_INSTANCES_DIR}/${id}/openclaw.json`
+        const instCfgPath = fs.existsSync(instCfgPath1) ? instCfgPath1 : instCfgPath2
         let isLocked = false, lockedAt = null
         if (fs.existsSync(instCfgPath)) {
           try {
@@ -1198,38 +1200,57 @@ app.get('/api/fleet/instances/:id/health', async (req, res) => {
 })
 
 // ====== Fleet Lock API (per-instance) ======
-const fs2 = require('fs')
-const FLEET_INSTANCES_DIR2 = '/home/openclaw/docker-openclaw/instances'
+const FLEET_INSTANCES_DIRS_FOR_LOCK = [
+  '/home/openclaw/.openclaw/instances',
+  '/home/openclaw/docker-openclaw/instances',
+]
+
+function resolveOpenclawJson(instanceId, baseDir) {
+  const p1 = `${baseDir}/${instanceId}/.openclaw/openclaw.json`
+  const p2 = `${baseDir}/${instanceId}/openclaw.json`
+  if (fs2.existsSync(p1)) return p1
+  if (fs2.existsSync(p2)) return p2
+  return null
+}
 
 function getInstanceLockState(instanceId) {
-  const cfgPath = `${FLEET_INSTANCES_DIR2}/${instanceId}/.openclaw/openclaw.json`
-  try {
-    if (!fs2.existsSync(cfgPath)) return { isLocked: false, error: 'instance_not_found' }
-    const cfg = JSON.parse(fs2.readFileSync(cfgPath, 'utf-8'))
-    const fleet = cfg.fleet || {}
-    return {
-      isLocked: !!fleet.locked,
-      lockedAt: fleet.lockedAt || null,
-      lockedBy: fleet.lockedBy || null,
-    }
-  } catch { return { isLocked: false, error: 'read_error' } }
+  for (const dir of FLEET_INSTANCES_DIRS_FOR_LOCK) {
+    const cfgPath = resolveOpenclawJson(instanceId, dir)
+    if (!cfgPath) continue
+    try {
+      const cfg = JSON.parse(fs2.readFileSync(cfgPath, 'utf-8'))
+      const fleet = cfg.fleet || {}
+      return {
+        isLocked: !!fleet.locked,
+        lockedAt: fleet.lockedAt || null,
+        lockedBy: fleet.lockedBy || null,
+      }
+    } catch { continue }
+  }
+  return { isLocked: false, error: 'instance_not_found' }
 }
 
 function setInstanceLock(instanceId, locked) {
-  const cfgPath = `${FLEET_INSTANCES_DIR2}/${instanceId}/.openclaw/openclaw.json`
-  const cfg = JSON.parse(fs2.readFileSync(cfgPath, 'utf-8'))
-  cfg.fleet = cfg.fleet || {}
-  if (locked) {
-    cfg.fleet.locked = true
-    cfg.fleet.lockedAt = new Date().toISOString()
-    cfg.fleet.lockedBy = 'dashboard'
-  } else {
-    delete cfg.fleet.locked
-    delete cfg.fleet.lockedAt
-    delete cfg.fleet.lockedBy
+  for (const dir of FLEET_INSTANCES_DIRS_FOR_LOCK) {
+    const cfgPath = resolveOpenclawJson(instanceId, dir)
+    if (!cfgPath) continue
+    try {
+      const cfg = JSON.parse(fs2.readFileSync(cfgPath, 'utf-8'))
+      cfg.fleet = cfg.fleet || {}
+      if (locked) {
+        cfg.fleet.locked = true
+        cfg.fleet.lockedAt = new Date().toISOString()
+        cfg.fleet.lockedBy = 'dashboard'
+      } else {
+        delete cfg.fleet.locked
+        delete cfg.fleet.lockedAt
+        delete cfg.fleet.lockedBy
+      }
+      fs2.writeFileSync(cfgPath, JSON.stringify(cfg, null, 2), 'utf-8')
+      return getInstanceLockState(instanceId)
+    } catch { continue }
   }
-  fs2.writeFileSync(cfgPath, JSON.stringify(cfg, null, 2), 'utf-8')
-  return getInstanceLockState(instanceId)
+  return { isLocked: false, error: 'instance_not_found' }
 }
 
 // GET /api/fleet/lock-status?instance=shortvideo

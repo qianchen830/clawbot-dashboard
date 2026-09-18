@@ -113,6 +113,27 @@ const PROJECTS = [
     autoStart: true,
     startCmd: `cd /home/openclaw/.openclaw/instances/webdev/.openclaw/state/workspace/projects && COZE_SUPABASE_URL=http://127.0.0.1:3010 COZE_SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJyb2xlIjoicG9zdGdyZXMiLCJpc3MiOiJzdXBhYmFzZSIsImV4cCI6MTgyMDkxNTA2MX0.ZSdkPjoiwCYSEKVZkMr_40PkJNeYn3pOMiZgUnk_Bp0 COZE_SUPABASE_SERVICE_ROLE_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJyb2xlIjoicG9zdGdyZXMiLCJpc3MiOiJzdXBhYmFzZSIsImV4cCI6MTgyMDkxNTA2MX0.ZSdkPjoiwCYSEKVZkMr_40PkJNeYn3pOMiZgUnk_Bp0 PORT=9091 NODE_ENV=development node server/dist/index.js > /tmp/kian-server.log 2>&1 &`,
     stopPorts: [9091],
+    // ── 生产发布信息 ──
+    deployed: true,
+    productionEnv: 'tencent-cloud',
+    productionUrl: 'http://1.14.45.222:3212',
+    productionBranch: 'master',
+    productionGitRemote: 'origin',
+    lastDeployTime: 0,
+  },
+  {
+    id: 'cockpit',
+    name: '数字大屏（渝中国资）',
+    description: '数字大屏项目 - 渝中国资资产系统 Vue2 + Element UI + ECharts',
+    port: 3006,
+    localUrl: 'http://localhost:3006',
+    gitPath: '/home/openclaw/.openclaw/instances/webdev/.openclaw/state/workspace/projects/cockpit',
+    branch: 'master',
+    tunnelPort: 3006,
+    tunnelUrl: '',
+    autoStart: false,
+    startCmd: 'cd /home/openclaw/.openclaw/instances/webdev/.openclaw/state/workspace/projects/cockpit/dist && nohup npx serve -l 3006 > /tmp/cockpit.log 2>&1 &',
+    stopPorts: [3006],
   },
 ]
 
