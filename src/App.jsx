@@ -1,8 +1,6 @@
 import Header from './components/Header'
 import NavSidebar from './components/NavSidebar'
-import Welcome from './components/Welcome'
-import QuickAccess from './components/QuickAccess'
-import AIToolBox from './components/AIToolBox'
+import CockpitHome from './components/cockpit/CockpitHome'
 import KnowledgeCenter from './components/KnowledgeCenter'
 import GitManager from './components/GitManager'
 import ProjectHub from './components/ProjectHub'
@@ -11,7 +9,6 @@ import SkillLibrary from './components/SkillLibrary'
 import HermesSkillLibrary from './components/HermesSkillLibrary'
 import VectorSearch from './components/VectorSearch'
 import DeliveryCockpit from './components/DeliveryCockpit'
-import StatusBar from './components/StatusBar'
 import FleetCluster from './components/FleetCluster'
 import ContentStudio from './components/ContentStudio'
 import LearningStudio from './components/LearningStudio'
@@ -77,14 +74,7 @@ export default function App() {
         return <ProjectHub />
       case 'home':
       default:
-        return (
-          <>
-            <Welcome />
-            <QuickAccess onNavigate={setView} />
-            <AIToolBox />
-            <StatusBar />
-          </>
-        )
+        return <CockpitHome onNavigate={setView} />
     }
   }
 

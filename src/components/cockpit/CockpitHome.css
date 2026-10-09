@@ -1,0 +1,551 @@
+/* ==================== ClawBot 神经中枢驾驶舱 ==================== */
+
+.cockpit {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) 150px;
+  gap: 14px;
+  height: calc(100vh - 105px);
+  min-height: 660px;
+}
+
+/* ── 顶部指挥条 ── */
+.cp-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 20px;
+}
+
+.cp-header-title {
+  font-size: 20px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: linear-gradient(90deg, #ffffff 0%, #7ee7ff 60%, #b39dff 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.cp-title-glow {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--color-accent);
+  box-shadow: 0 0 12px var(--color-accent), 0 0 24px rgba(0, 212, 255, 0.5);
+  animation: cpBreath 2.4s ease-in-out infinite;
+}
+
+@keyframes cpBreath {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.55; transform: scale(0.8); }
+}
+
+.cp-header-sub {
+  font-size: 12px;
+  color: var(--color-text-muted);
+  margin-top: 2px;
+}
+
+.cp-header-right {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.cp-ext-link {
+  font-size: 12px;
+  color: var(--color-text-secondary);
+  border: 1px solid var(--color-border);
+  border-radius: 999px;
+  padding: 4px 12px;
+  cursor: pointer;
+  transition: all 0.25s ease;
+  user-select: none;
+}
+
+.cp-ext-link:hover {
+  color: var(--color-accent);
+  border-color: rgba(0, 212, 255, 0.4);
+  box-shadow: 0 0 12px rgba(0, 212, 255, 0.15);
+}
+
+.cp-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  border-radius: 999px;
+  padding: 4px 12px;
+  border: 1px solid var(--color-border);
+  color: var(--color-text-secondary);
+  white-space: nowrap;
+}
+
+.cp-pill.ok { color: var(--color-accent-green); border-color: rgba(0, 230, 118, 0.35); }
+.cp-pill.warn { color: #ffb300; border-color: rgba(255, 179, 0, 0.35); }
+
+.cp-clock { text-align: right; line-height: 1.25; }
+
+.cp-clock-time {
+  font-size: 20px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: var(--color-accent);
+  text-shadow: 0 0 16px rgba(0, 212, 255, 0.35);
+}
+
+.cp-clock-date { font-size: 11px; color: var(--color-text-muted); }
+
+/* ── 主区三栏 ── */
+.cp-main {
+  display: grid;
+  grid-template-columns: 250px minmax(0, 1fr) 300px;
+  gap: 14px;
+  min-height: 0;
+}
+
+/* 左侧 KPI */
+.cp-left {
+  display: grid;
+  grid-template-rows: repeat(4, minmax(0, 1fr));
+  gap: 14px;
+  min-height: 0;
+}
+
+.cp-kpi {
+  padding: 14px 18px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  overflow: hidden;
+  --kpi-color: #00d4ff;
+}
+
+.cp-kpi-title {
+  font-size: 12px;
+  color: var(--color-text-muted);
+  letter-spacing: 2px;
+}
+
+.cp-kpi-value {
+  font-size: 34px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: var(--kpi-color);
+  text-shadow: 0 0 18px color-mix(in srgb, var(--kpi-color) 55%, transparent);
+  line-height: 1.15;
+  margin: 4px 0 2px;
+}
+
+.cp-kpi-unit {
+  font-size: 14px;
+  font-weight: 500;
+  margin-left: 4px;
+  color: var(--color-text-muted);
+  text-shadow: none;
+}
+
+.cp-kpi-sub { font-size: 11px; color: var(--color-text-muted); }
+
+.cp-kpi-scanline {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 1px;
+  top: 0;
+  background: linear-gradient(90deg, transparent, var(--kpi-color), transparent);
+  opacity: 0.35;
+  animation: cpKpiScan 3.5s linear infinite;
+}
+
+@keyframes cpKpiScan {
+  0% { top: 0%; opacity: 0; }
+  8% { opacity: 0.4; }
+  92% { opacity: 0.4; }
+  100% { top: 100%; opacity: 0; }
+}
+
+/* 中央 3D 舞台 */
+.cp-center {
+  position: relative;
+  min-height: 0;
+  overflow: hidden;
+  background:
+    radial-gradient(ellipse 60% 55% at 50% 48%, rgba(0, 212, 255, 0.07), transparent 70%),
+    rgba(8, 10, 26, 0.35);
+}
+
+.neural-sphere {
+  position: absolute;
+  inset: 0;
+}
+
+.neural-sphere canvas { outline: none; }
+
+.cp-hud {
+  position: absolute;
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  pointer-events: none;
+}
+
+.cp-hud-tl { top: 12px; left: 14px; }
+.cp-hud-br { bottom: 12px; right: 14px; }
+
+.cp-hud-tag {
+  font-size: 10px;
+  letter-spacing: 3px;
+  color: var(--color-accent);
+  border: 1px solid rgba(0, 212, 255, 0.35);
+  padding: 3px 8px;
+  border-radius: 4px;
+  background: rgba(0, 212, 255, 0.06);
+}
+
+.cp-hud-text { font-size: 11px; color: var(--color-text-muted); }
+
+/* 中央区四角框线装饰 */
+.cp-center::before,
+.cp-center::after {
+  content: '';
+  position: absolute;
+  width: 26px;
+  height: 26px;
+  z-index: 4;
+  pointer-events: none;
+}
+
+.cp-center::before {
+  top: 8px;
+  left: 8px;
+  border-top: 2px solid rgba(0, 212, 255, 0.55);
+  border-left: 2px solid rgba(0, 212, 255, 0.55);
+}
+
+.cp-center::after {
+  bottom: 8px;
+  right: 8px;
+  border-bottom: 2px solid rgba(124, 77, 255, 0.55);
+  border-right: 2px solid rgba(124, 77, 255, 0.55);
+}
+
+.cp-scanline {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 80px;
+  top: -80px;
+  z-index: 3;
+  pointer-events: none;
+  background: linear-gradient(180deg, transparent, rgba(0, 212, 255, 0.045), transparent);
+  animation: cpStageScan 7s linear infinite;
+}
+
+@keyframes cpStageScan {
+  0% { top: -80px; }
+  100% { top: 100%; }
+}
+
+/* 3D 节点标签（drei Html 渲染在 canvas 内） */
+.n-label {
+  font-size: 11px;
+  padding: 3px 10px;
+  border-radius: 999px;
+  border: 1px solid rgba(160, 210, 255, 0.28);
+  background: rgba(10, 14, 32, 0.72);
+  color: #cfe9ff;
+  white-space: nowrap;
+  cursor: pointer;
+  user-select: none;
+  transform: translateZ(0);
+  transition: transform 0.2s ease, box-shadow 0.2s ease, background 0.2s ease;
+  backdrop-filter: blur(3px);
+  font-variant-numeric: tabular-nums;
+}
+
+.n-label:hover,
+.n-label.hot {
+  background: rgba(10, 14, 32, 0.9);
+  box-shadow: 0 0 14px rgba(0, 212, 255, 0.25);
+  transform: scale(1.18);
+}
+
+/* 右侧面板列 */
+.cp-right {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  min-height: 0;
+}
+
+.cp-panel {
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.cp-panel-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--color-text-primary);
+  margin-bottom: 10px;
+}
+
+.cp-title-bar {
+  width: 3px;
+  height: 14px;
+  border-radius: 2px;
+  background: linear-gradient(180deg, var(--color-accent), var(--color-accent-purple));
+  box-shadow: 0 0 8px rgba(0, 212, 255, 0.5);
+}
+
+.cp-more {
+  margin-left: auto;
+  font-size: 11px;
+  font-weight: 400;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  transition: color 0.2s;
+}
+
+.cp-more:hover { color: var(--color-accent); }
+
+.cp-loading {
+  font-size: 12px;
+  color: var(--color-text-muted);
+  padding: 12px 0;
+  animation: cpPulse 1.6s ease-in-out infinite;
+}
+
+@keyframes cpPulse {
+  0%, 100% { opacity: 0.5; }
+  50% { opacity: 1; }
+}
+
+/* 服务健康 */
+.cp-panel:first-child { flex: 1 1 auto; }
+
+.cp-svc-list {
+  flex: 1;
+  overflow-y: auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding-right: 4px;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(0, 212, 255, 0.25) transparent;
+}
+
+.cp-svc-list::-webkit-scrollbar { width: 4px; }
+.cp-svc-list::-webkit-scrollbar-thumb { background: rgba(0, 212, 255, 0.25); border-radius: 2px; }
+
+.cp-svc-row {
+  display: grid;
+  grid-template-columns: 10px 1fr auto;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 2px;
+  font-size: 12px;
+}
+
+.cp-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  display: inline-block;
+}
+
+.cp-dot.on {
+  background: var(--color-accent-green);
+  box-shadow: 0 0 8px rgba(0, 230, 118, 0.7);
+}
+
+.cp-dot.off {
+  background: var(--color-err);
+  box-shadow: 0 0 8px rgba(255, 68, 68, 0.6);
+}
+
+.cp-svc-name {
+  color: var(--color-text-secondary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.cp-svc-latency {
+  font-size: 11px;
+  color: var(--color-text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+/* 今日推送 */
+.cp-push-list { display: flex; flex-direction: column; gap: 4px; }
+
+.cp-push-row {
+  display: grid;
+  grid-template-columns: 10px 1fr auto;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+}
+
+.cp-push-name { color: var(--color-text-secondary); }
+
+.cp-push-state { font-size: 11px; }
+
+.cp-push-state.done { color: var(--color-accent-green); }
+.cp-push-state.pending { color: var(--color-text-muted); }
+
+/* 最近学习 */
+.cp-recent-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 5px 2px;
+  font-size: 12px;
+  cursor: pointer;
+  border-bottom: 1px dashed rgba(255, 255, 255, 0.05);
+  transition: background 0.2s;
+}
+
+.cp-recent-row:last-child { border-bottom: none; }
+.cp-recent-row:hover { background: rgba(0, 212, 255, 0.05); }
+
+.cp-recent-topic {
+  color: var(--color-text-secondary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.cp-recent-meta {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--color-text-muted);
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+.cp-cat {
+  font-style: normal;
+  font-size: 10px;
+  padding: 1px 6px;
+  border-radius: 4px;
+  background: rgba(124, 77, 255, 0.14);
+  color: #b39dff;
+  border: 1px solid rgba(124, 77, 255, 0.25);
+}
+
+/* ── 底部趋势区 ── */
+.cp-bottom {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 20px;
+  align-items: stretch;
+  padding: 10px 20px;
+}
+
+.cp-bottom-chart { display: flex; flex-direction: column; min-width: 0; }
+
+.cp-trend { flex: 1; width: 100%; min-height: 0; }
+
+.cp-axis-text {
+  fill: rgba(255, 255, 255, 0.4);
+  font-size: 10px;
+  font-family: 'Inter', system-ui, sans-serif;
+}
+
+.cp-trend-empty { font-size: 12px; }
+
+.cp-bottom-stats {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  padding-left: 16px;
+  border-left: 1px solid var(--color-border);
+}
+
+.cp-bstat {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  min-width: 64px;
+}
+
+.cp-bstat i {
+  font-style: normal;
+  font-size: 11px;
+  color: var(--color-text-muted);
+}
+
+.cp-bstat b {
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--color-text-primary);
+  font-variant-numeric: tabular-nums;
+}
+
+.cp-bstat b u {
+  text-decoration: none;
+  font-size: 11px;
+  font-weight: 400;
+  color: var(--color-text-muted);
+  margin-left: 2px;
+}
+
+.cp-bstat-date { font-size: 10px; }
+
+/* ==================== 响应式 ==================== */
+@media (max-width: 1280px) {
+  .cp-main { grid-template-columns: 210px minmax(0, 1fr) 260px; }
+  .cp-kpi-value { font-size: 28px; }
+}
+
+@media (max-width: 1024px) {
+  .cockpit {
+    height: auto;
+    min-height: 0;
+    grid-template-rows: auto auto auto;
+  }
+
+  .cp-main {
+    grid-template-columns: 1fr;
+  }
+
+  .cp-center { order: -1; height: 420px; }
+
+  .cp-left {
+    grid-template-rows: none;
+    grid-template-columns: repeat(4, 1fr);
+  }
+
+  .cp-right { flex-direction: column; }
+}
+
+@media (max-width: 640px) {
+  .cp-left { grid-template-columns: repeat(2, 1fr); }
+  .cp-header { flex-direction: column; gap: 10px; align-items: flex-start; }
+  .cp-bottom { grid-template-columns: 1fr; }
+  .cp-bottom-stats { border-left: none; border-top: 1px solid var(--color-border); padding: 10px 0 0; }
+}
+
+/* ==================== 减弱动效偏好 ==================== */
+@media (prefers-reduced-motion: reduce) {
+  .cp-title-glow,
+  .cp-kpi-scanline,
+  .cp-scanline,
+  .cp-loading { animation: none; }
+}

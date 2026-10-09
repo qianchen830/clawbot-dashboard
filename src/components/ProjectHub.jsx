@@ -149,6 +149,27 @@ const PROJECTS = [
     startCmd: 'cd /home/openclaw/.openclaw/instances/webdev/.openclaw/state/workspace/projects/cockpit/dist && nohup npx serve -l 3006 > /tmp/cockpit.log 2>&1 &',
     stopPorts: [3006],
   },
+  {
+    id: 'aisv',
+    name: '🎬 AI短视频系统',
+    description: 'AI 短视频生成与发布平台：RunningHub 工作流（文生图/图生视频/动作迁移）、批量任务、多平台发布（B站/抖音/快手/视频号）、媒体账号与粉丝数据管理',
+    port: 5000,
+    localUrl: 'http://localhost:5000',
+    gitPath: '/home/openclaw/projects/AIShortVideos',
+    branch: 'main',
+    tunnelPort: 5000,
+    tunnelUrl: '',
+    autoStart: true,
+    startCmd: 'docker start aisv-postgres 2>/dev/null; cd /home/openclaw/projects/AIShortVideos && nohup env DATABASE_URL=postgres://postgres:aisv123456@127.0.0.1:5432/video_management PGDATABASE_URL=postgres://postgres:aisv123456@127.0.0.1:5432/video_management PORT=5000 HOSTNAME=0.0.0.0 COZE_PROJECT_ENV=PROD node dist-server/server.js > /tmp/aisv-server.log 2>&1 &',
+    stopPorts: [5000],
+    // ── 生产发布信息 ──
+    deployed: true,
+    productionEnv: 'local-wsl',
+    productionUrl: 'http://localhost:5000',
+    productionBranch: 'main',
+    productionGitRemote: '',
+    lastDeployTime: 1787385600000, // 2026-10-09 14:00:00 CST 本地部署
+  },
 ]
 
 // ── 工具函数 ─────────────────────────────────────────────────────
