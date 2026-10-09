@@ -17,6 +17,20 @@ import './ProjectHub.css'
 //   lastDeployTime: 最近发布时间（Unix ms），由前端每次成功部署后更新
 const PROJECTS = [
   {
+    id: 'chongqing-night',
+    name: '🎮 重庆夜未眠',
+    description: '3D角色扮演约会模拟游戏，Three.js + WebGL，第一人称视角，WASD移动，探索重庆夜景',
+    port: 3000,
+    localUrl: 'http://localhost:3000',
+    gitPath: '/home/openclaw/.openclaw/instances/aigame/.openclaw/state/workspace/chongqing-night',
+    branch: 'main',
+    tunnelPort: 3000,
+    tunnelUrl: '',
+    autoStart: true,
+    startCmd: 'cd /home/openclaw/.openclaw/instances/aigame/.openclaw/state/workspace/chongqing-night && nohup node node_modules/vite/bin/vite.js --host 0.0.0.0 --port 3000 > /tmp/chongqing-night.log 2>&1 &',
+    stopPorts: [3000],
+  },
+  {
     id: 'clawbot',
     name: 'ClawBot 管理台',
     description: 'OpenClaw AI 助手管理平台，含项目管理、知识中心、Git 管理、Fleet 集群监控',

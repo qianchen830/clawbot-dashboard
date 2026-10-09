@@ -8,7 +8,8 @@ import GitManager from './components/GitManager'
 import ProjectHub from './components/ProjectHub'
 import DataCenter from './components/DataCenter'
 import SkillLibrary from './components/SkillLibrary'
-import ClawHubEcosystem from './components/ClawHubEcosystem'
+import HermesSkillLibrary from './components/HermesSkillLibrary'
+import VectorSearch from './components/VectorSearch'
 import DeliveryCockpit from './components/DeliveryCockpit'
 import StatusBar from './components/StatusBar'
 import FleetCluster from './components/FleetCluster'
@@ -58,8 +59,10 @@ export default function App() {
         return <DataCenter />
       case 'skills':
         return <SkillLibrary />
+      case 'hermes-skills':
+        return <HermesSkillLibrary />
       case 'clawhub':
-        return <ClawHubEcosystem />
+        return <VectorSearch />
       case 'fleet':
         return <FleetCluster />
       case 'content':
